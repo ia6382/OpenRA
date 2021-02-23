@@ -16,7 +16,7 @@
     <ExternalConsole>false</ExternalConsole>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <CodeAnalysisRuleSet>..\OpenRA.ruleset</CodeAnalysisRuleSet>
-    <Configurations>Release;Debug</Configurations>
+    <Configurations>Release;Debug;test;test1</Configurations>
   </PropertyGroup>
   <PropertyGroup>
     <TargetPlatform Condition="$([MSBuild]::IsOsPlatform('Windows'))">win-x64</TargetPlatform>
@@ -28,6 +28,14 @@
     <Compile Include="**/*.cs" Exclude="$(DefaultItemExcludes)" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='test1'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='test'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>
   </PropertyGroup>

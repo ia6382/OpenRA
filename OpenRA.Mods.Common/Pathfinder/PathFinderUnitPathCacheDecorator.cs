@@ -32,7 +32,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public List<CPos> FindUnitPath(CPos source, CPos target, Actor self, Actor ignoreActor, BlockedByActor check)
 		{
-			using (new PerfSample("Pathfinder"))
+			using (new PerfSample("Pathfinder")) // SLO: meri cas.
 			{
 				var key = "FindUnitPath" + self.ActorID + source.X + source.Y + target.X + target.Y;
 

@@ -77,6 +77,8 @@ namespace OpenRA.Mods.Common.Traits
 
 			var distance = source - target;
 			var canMoveFreely = locomotor.CanMoveFreelyInto(self, target, check, null);
+
+			// If target is neighbouring cell.
 			if (distance.LengthSquared < 3 && !canMoveFreely)
 				return new List<CPos> { };
 
@@ -85,6 +87,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			List<CPos> pb;
 
+			// SLO: Poklice staticno metodo From point iz classa PathSearch, ki vrne search objekt, nad katerim klicemo metodo WithIgnoredActor, ki vrne spremenjen search objekt.
 			using (var fromSrc = PathSearch.FromPoint(world, locomotor, self, target, source, check).WithIgnoredActor(ignoreActor))
 			using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor).Reverse())
 				pb = FindBidiPath(fromSrc, fromDest);
@@ -109,7 +112,7 @@ namespace OpenRA.Mods.Common.Traits
 			// Correct for SubCell offset
 			target -= world.Map.Grid.OffsetOfSubCell(srcSub);
 
-			// Select only the tiles that are within range from the requested SubCell
+			// Select only the tiles that are within range from the requested SubCell SLO: tiles == Cells zato delijo z 1024 + 1
 			// This assumes that the SubCell does not change during the path traversal
 			var tilesInRange = world.Map.FindTilesInCircle(targetCell, range.Length / 1024 + 1)
 				.Where(t => (world.Map.CenterOfCell(t) - target).LengthSquared <= range.LengthSquared
@@ -144,12 +147,26 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			search.Graph.Dispose();
+			if (search.RRAsearch != null)
+				search.RRAsearch.Graph.Dispose();
 
 			if (path != null)
 				return path;
 
 			// no path exists
 			return EmptyPath;
+		}
+
+		public static bool ResumeRRA(IPathSearch search, CPos n)
+		{
+			while (search.CanExpand)
+			{
+				var p = search.Expand();
+				if (p.X == n.X & p.Y == n.Y)
+					return true;
+			}
+
+			return false;
 		}
 
 		// Searches from both ends toward each other. This is used to prevent blockings in case we find

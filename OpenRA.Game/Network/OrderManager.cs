@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using OpenRA.Primitives;
 using OpenRA.Support;
@@ -197,7 +198,9 @@ namespace OpenRA.Network
 			localOrders.Clear();
 
 			foreach (var order in frameData.OrdersForFrame(World, NetFrameNumber))
+			{
 				UnitOrders.ProcessOrder(this, World, order.Client, order.Order);
+			}
 
 			if (NetFrameNumber + FramesAhead >= GameSaveLastSyncFrame)
 			{

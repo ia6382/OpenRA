@@ -14,13 +14,21 @@
     <ExternalConsole>false</ExternalConsole>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <CodeAnalysisRuleSet>..\OpenRA.ruleset</CodeAnalysisRuleSet>
-    <Configurations>Release;Debug</Configurations>
+    <Configurations>Release;Debug;test;test1</Configurations>
   </PropertyGroup>
   <ItemGroup>
     <!-- Work around an issue where Rider does not detect files in the project root using the default glob -->
     <Compile Include="**/*.cs" Exclude="$(DefaultItemExcludes)" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='test1'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='test'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <Optimize>false</Optimize>
   </PropertyGroup>

@@ -10,7 +10,8 @@
     },
     "Dune 2000": {
       "commandName": "Project",
-      "commandLineArgs": "Game.Mod=d2k"
+      "commandLineArgs": "Game.Mod=d2k",
+      "nativeDebugging": false
     },
     "Tiberian Sun": {
       "commandName": "Project",

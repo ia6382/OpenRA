@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using OpenRA.Mods.Common.Traits;
 using OpenRA.Primitives;
@@ -63,7 +64,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 		{
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
 			var search = new PathSearch(graph);
-			search.heuristic = search.DefaultEstimator(target);
+
+			search.RRAsearch = InitialiseRRA(world, locomotor, self, froms.First(), target, check);
+			search.heuristic = search.RRA();
 
 			// The search will aim for the shortest path by default, a weight of 100%.
 			// We can allow the search to find paths that aren't optimal by changing the weight.
@@ -72,7 +75,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			// The benefit of allowing the search to return suboptimal paths is faster computation time.
 			// The search can skip some areas of the search space, meaning it has less work to do.
 			// We allow paths up to 25% longer than the shortest, optimal path, to improve pathfinding time.
-			search.heuristicWeightPercentage = 125;
+			search.heuristicWeightPercentage = 125; // SLO: popravi na 100, prej je bilo 125
 
 			search.isGoal = loc =>
 			{
@@ -83,6 +86,26 @@ namespace OpenRA.Mods.Common.Pathfinder
 			foreach (var sl in froms)
 				if (world.Map.Contains(sl))
 					search.AddInitialCell(sl);
+
+			return search;
+		}
+
+		private static IPathSearch InitialiseRRA(World world, Locomotor locomotor, Actor self, CPos from, CPos target, BlockedByActor check)
+		{
+			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
+			var search = new PathSearch(graph);
+
+			search.heuristic = search.DefaultEstimator(from);
+
+			search.heuristicWeightPercentage = 100;
+
+			search.isGoal = loc =>
+			{
+				var locInfo = search.Graph[loc];
+				return locInfo.EstimatedTotal - locInfo.CostSoFar == 0;
+			};
+
+			search.AddInitialCell(target);
 
 			return search;
 		}
@@ -106,10 +129,10 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// <returns>The most promising node of the iteration</returns>
 		public override CPos Expand()
 		{
-			var currentMinNode = OpenQueue.Pop().Destination;
+			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CellPos.
 
-			var currentCell = Graph[currentMinNode];
-			Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
+			var currentCell = Graph[currentMinNode]; // SLO: CellInfo.
+			Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed); // SLO: oznaci kot closed.
 
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
 				return currentMinNode;

@@ -70,7 +70,7 @@ namespace OpenRA.Mods.Common.Traits
 
 		public override object Create(ActorInitializer init) { return new Mobile(init, this); }
 
-		public LocomotorInfo LocomotorInfo { get; private set; }
+		public LocomotorInfo LocomotorInfo { get; set; }
 
 		public override void RulesetLoaded(Ruleset rules, ActorInfo ai)
 		{

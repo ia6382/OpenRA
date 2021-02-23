@@ -48,6 +48,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return layer;
 		}
 
+		/// <summary>
+		/// SLO: push layer.
+		/// </summary>
 		void ReturnLayer(CellLayer<CellInfo> layer)
 		{
 			lock (pool)

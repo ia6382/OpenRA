@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using OpenRA.Activities;
 using OpenRA.Mods.Common.Pathfinder;
@@ -80,7 +81,6 @@ namespace OpenRA.Mods.Common.Activities
 			{
 				if (!this.destination.HasValue)
 					return NoPath;
-
 				return mobile.Pathfinder.FindUnitPath(mobile.ToCell, this.destination.Value, self, ignoreActor, check);
 			};
 
@@ -149,7 +149,19 @@ namespace OpenRA.Mods.Common.Activities
 
 		List<CPos> EvalPath(BlockedByActor check)
 		{
+			Stopwatch stopWatch = new Stopwatch(); // SLO
+			stopWatch.Start();
+
 			var path = getPath(check).TakeWhile(a => a != mobile.ToCell).ToList();
+
+			stopWatch.Stop();
+
+			// Get the elapsed time as a TimeSpan value.
+			long ms = stopWatch.ElapsedMilliseconds;
+
+			// Format and display the TimeSpan value.
+			Console.WriteLine("FindUnitPath " + ms.ToString());
+
 			mobile.PathHash = HashList(path);
 			return path;
 		}
