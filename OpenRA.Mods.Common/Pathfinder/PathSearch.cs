@@ -65,8 +65,13 @@ namespace OpenRA.Mods.Common.Pathfinder
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
 			var search = new PathSearch(graph);
 
-			search.RRAsearch = InitialiseRRA(world, locomotor, self, froms.First(), target, check);
-			search.heuristic = search.RRA();
+			if (froms.Any())
+			{
+				search.RRAsearch = InitialiseRRA(world, locomotor, self, froms.First(), target, check);
+				search.heuristic = search.RRA();
+			}
+			else
+				search.heuristic = search.DefaultEstimator(target);
 
 			// The search will aim for the shortest path by default, a weight of 100%.
 			// We can allow the search to find paths that aren't optimal by changing the weight.
@@ -93,6 +98,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		private static IPathSearch InitialiseRRA(World world, Locomotor locomotor, Actor self, CPos from, CPos target, BlockedByActor check)
 		{
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
+			graph.IgnoreActor = self;
 			var search = new PathSearch(graph);
 
 			search.heuristic = search.DefaultEstimator(from);

@@ -33,6 +33,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		int MaxCost { get; }
 
+		/// <summary>
+		/// search used by RRA heuristic
+		/// </summary>
+		IPathSearch RRAsearch { get; }
+
 		IPathSearch Reverse();
 
 		IPathSearch WithCustomBlocker(Func<CPos, bool> customBlock);
@@ -48,11 +53,6 @@ namespace OpenRA.Mods.Common.Pathfinder
 		IPathSearch WithoutLaneBias();
 
 		IPathSearch FromPoint(CPos from);
-
-		/// <summary>
-		/// search used by RRA heuristic
-		/// </summary>
-		IPathSearch RRAsearch { get; }
 
 		/// <summary>
 		/// Decides whether a location is a target based on its estimate
@@ -134,7 +134,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 				if (cell.Status == CellStatus.Closed)
 					return cell.CostSoFar;
 				else if (PathFinder.ResumeRRA(RRAsearch, here))
-					return cell.CostSoFar;
+					return RRAsearch.Graph[here].CostSoFar;
 				else
 					return int.MaxValue;
 			};

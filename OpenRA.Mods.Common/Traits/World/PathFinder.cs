@@ -88,9 +88,13 @@ namespace OpenRA.Mods.Common.Traits
 			List<CPos> pb;
 
 			// SLO: Poklice staticno metodo From point iz classa PathSearch, ki vrne search objekt, nad katerim klicemo metodo WithIgnoredActor, ki vrne spremenjen search objekt.
-			using (var fromSrc = PathSearch.FromPoint(world, locomotor, self, target, source, check).WithIgnoredActor(ignoreActor))
-			using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor).Reverse())
-				pb = FindBidiPath(fromSrc, fromDest);
+			/*
+			 * using (var fromSrc = PathSearch.FromPoint(world, locomotor, self, target, source, check).WithIgnoredActor(ignoreActor))
+			 * using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor).Reverse())
+			 *	pb = FindBidiPath(fromSrc, fromDest);
+			*/
+			using (var search = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor))
+					pb = FindPath(search);
 
 			return pb;
 		}
@@ -127,9 +131,11 @@ namespace OpenRA.Mods.Common.Traits
 					return EmptyPath;
 			}
 
-			using (var fromSrc = PathSearch.FromPoints(world, locomotor, self, tilesInRange, source, check))
-			using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, targetCell, check).Reverse())
-				return FindBidiPath(fromSrc, fromDest);
+			/* using (var fromSrc = PathSearch.FromPoints(world, locomotor, self, tilesInRange, source, check))
+			 * using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, targetCell, check).Reverse())
+			*/
+			using (var search = PathSearch.FromPoint(world, locomotor, self, source, targetCell, check))
+				return FindPath(search);
 		}
 
 		public List<CPos> FindPath(IPathSearch search)
