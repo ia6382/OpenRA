@@ -158,3 +158,5 @@ Player:
 	PlayerExperience:
 	GameSaveViewportManager:
 	PlayerRadarTerrain:
+	SpaceTimeReservation:
+		TimeLength: 5000
