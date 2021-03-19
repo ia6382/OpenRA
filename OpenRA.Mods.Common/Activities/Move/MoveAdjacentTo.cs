@@ -83,6 +83,7 @@ namespace OpenRA.Mods.Common.Activities
 
 		protected override void OnFirstRun(Actor self)
 		{
+			Mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, Mobile.Locomotor, self, Mobile.ToCell, lastVisibleTargetLocation, BlockedByActor.Immovable);
 			QueueChild(Mobile.MoveTo(check => CalculatePathToTarget(self, check)));
 		}
 

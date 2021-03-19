@@ -183,6 +183,10 @@ namespace OpenRA.Mods.Common.Traits
 					Occupancy = self.World.ActorsHavingTrait<Harvester>(h => h.LinkedProc == r.Actor).Count()
 				}).ToLookup(r => r.Location);
 
+			// SLO: optimisation. Do not search if only one refinery
+			if (refineries.Count() == 1)
+				return refineries.First().ToArray()[0].Actor;
+
 			// Start a search from each refinery's delivery location:
 			List<CPos> path;
 

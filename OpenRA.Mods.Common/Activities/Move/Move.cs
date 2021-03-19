@@ -42,6 +42,9 @@ namespace OpenRA.Mods.Common.Activities
 		List<CPos> path;
 		CPos? destination;
 
+		// For counting moves until mobile.W/2
+		int wCounter;
+
 		// For dealing with blockers
 		bool hasWaited;
 		int waitTicksRemaining;
@@ -59,6 +62,7 @@ namespace OpenRA.Mods.Common.Activities
 			getPath = check =>
 			{
 				List<CPos> path;
+
 				using (var search =
 					PathSearch.FromPoint(self.World, mobile.Locomotor, self, mobile.ToCell, destination, check)
 					.WithoutLaneBias())
@@ -168,6 +172,12 @@ namespace OpenRA.Mods.Common.Activities
 
 		protected override void OnFirstRun(Actor self)
 		{
+			wCounter = 0;
+
+			// SLO: in case RRA was initialised in MoveAdjacentTo
+			if (destination.HasValue)
+				mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, mobile.Locomotor, self, mobile.ToCell, destination.Value, BlockedByActor.Immovable);
+			/*
 			if (evaluateNearestMovableCell && destination.HasValue)
 			{
 				var movableDestination = mobile.NearestMoveableCell(destination.Value);
@@ -181,10 +191,36 @@ namespace OpenRA.Mods.Common.Activities
 				if (path.Count > 0)
 					return;
 			}
+			*/
 		}
 
 		public override bool Tick(Actor self)
 		{
+			if (wCounter == 0 || wCounter == mobile.W / 2)
+			{
+				// SLO: start a new search for next W steps
+				if (evaluateNearestMovableCell && destination.HasValue)
+				{
+					var movableDestination = mobile.NearestMoveableCell(destination.Value);
+					destination = mobile.CanEnterCell(movableDestination, check: BlockedByActor.Immovable) ? movableDestination : (CPos?)null;
+				}
+
+				// TODO: Change this to BlockedByActor.Stationary after improving the local avoidance behaviour
+				foreach (var check in PathSearchOrder)
+				{
+					path = EvalPath(check);
+					if (path.Count > 0)
+						break;
+				}
+			}
+
+			// (wCounter < mobile.W / 2)
+			else
+			{
+				// SLO: spodnja koda NEDOKONCANA JE CELA TICK METODA!
+			}
+
+			// Continue moving along found path.
 			mobile.TurnToMove = false;
 
 			if (IsCanceling && mobile.CanStayInCell(mobile.ToCell))
@@ -347,6 +383,7 @@ namespace OpenRA.Mods.Common.Activities
 
 		protected override void OnLastRun(Actor self)
 		{
+			mobile.RRAsearch.Graph.Dispose();
 			path = null;
 		}
 

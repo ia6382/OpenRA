@@ -63,6 +63,9 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Boolean expression defining the condition under which this actor cannot be nudged by other actors.")]
 		public readonly BooleanExpression ImmovableCondition = null;
 
+		[Desc("Window lenght in which agent searches cooperativly.")]
+		public readonly int W = 8;
+
 		IEnumerable<ActorInit> IActorPreviewInitInfo.ActorPreviewInits(ActorInfo ai, ActorPreviewType type)
 		{
 			yield return new FacingInit(PreviewFacing);
@@ -186,6 +189,7 @@ namespace OpenRA.Mods.Common.Traits
 		IWrapMove[] moveWrappers;
 		bool requireForceMove;
 
+		public IPathSearch RRAsearch { get; set; }
 		public bool IsImmovable { get; private set; }
 		public bool TurnToMove;
 		public bool IsBlocking { get; private set; }
@@ -203,6 +207,8 @@ namespace OpenRA.Mods.Common.Traits
 			get { return orientation.Yaw; }
 			set { orientation = orientation.WithYaw(value); }
 		}
+
+		public int W { get { return Info.W; } }
 
 		public WRot Orientation { get { return orientation; } }
 

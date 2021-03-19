@@ -33,11 +33,12 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		int MaxCost { get; }
 
+		/*
 		/// <summary>
 		/// search used by RRA heuristic
 		/// </summary>
 		IPathSearch RRAsearch { get; }
-
+		*/
 		IPathSearch Reverse();
 
 		IPathSearch WithCustomBlocker(Func<CPos, bool> customBlock);
@@ -81,8 +82,8 @@ namespace OpenRA.Mods.Common.Pathfinder
 		protected Func<CPos, int> heuristic;
 		protected Func<CPos, bool> isGoal;
 		protected int heuristicWeightPercentage;
-		public IPathSearch RRAsearch { get; set; }
 
+		// public IPathSearch RRAsearch { get; set; }
 		// This member is used to compute the ID of PathSearch.
 		// Essentially, it represents a collection of the initial
 		// points considered and their Heuristics to reach
@@ -99,7 +100,8 @@ namespace OpenRA.Mods.Common.Pathfinder
 			StartPoints = new PriorityQueue<GraphConnection>(GraphConnection.ConnectionCostComparer);
 			MaxCost = 0;
 			heuristicWeightPercentage = 100;
-			RRAsearch = null;
+
+			// RRAsearch = null;
 
 			// Determine the minimum possible cost for moving horizontally between cells based on terrain speeds.
 			// The minimum possible cost diagonally is then Sqrt(2) times more costly.
@@ -126,15 +128,15 @@ namespace OpenRA.Mods.Common.Pathfinder
 			};
 		}
 
-		protected Func<CPos, int> RRA()
+		protected Func<CPos, int> RRA(IPathSearch rraSearch)
 		{
 			return here =>
 			{
-				var cell = RRAsearch.Graph[here];
+				var cell = rraSearch.Graph[here];
 				if (cell.Status == CellStatus.Closed)
 					return cell.CostSoFar;
-				else if (PathFinder.ResumeRRA(RRAsearch, here))
-					return RRAsearch.Graph[here].CostSoFar;
+				else if (PathFinder.ResumeRRA(rraSearch, here))
+					return rraSearch.Graph[here].CostSoFar;
 				else
 					return int.MaxValue;
 			};

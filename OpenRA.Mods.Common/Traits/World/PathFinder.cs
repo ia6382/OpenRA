@@ -153,8 +153,10 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			search.Graph.Dispose();
+			/*
 			if (search.RRAsearch != null)
 				search.RRAsearch.Graph.Dispose();
+			*/
 
 			if (path != null)
 				return path;

@@ -65,10 +65,13 @@ namespace OpenRA.Mods.Common.Pathfinder
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
 			var search = new PathSearch(graph);
 
-			if (froms.Any())
+			// SLO: quick fix for actors that pathfind before spawning in world or have multiple froms - harvesters
+			if (froms.Count() == 1)
 			{
-				search.RRAsearch = InitialiseRRA(world, locomotor, self, froms.First(), target, check);
-				search.heuristic = search.RRA();
+				// search.RRAsearch = InitialiseRRA(world, locomotor, self, froms.First(), target, check);
+				// search.RRAsearch = self.TraitOrDefault<Mobile>().RRAsearch;
+				var rraSearch = self.Trait<Mobile>().RRAsearch;
+				search.heuristic = search.RRA(rraSearch);
 			}
 			else
 				search.heuristic = search.DefaultEstimator(target);
@@ -80,7 +83,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			// The benefit of allowing the search to return suboptimal paths is faster computation time.
 			// The search can skip some areas of the search space, meaning it has less work to do.
 			// We allow paths up to 25% longer than the shortest, optimal path, to improve pathfinding time.
-			search.heuristicWeightPercentage = 125; // SLO: popravi na 100, prej je bilo 125
+			search.heuristicWeightPercentage = 100; // SLO: popravi na 100, prej je bilo 125
 
 			search.isGoal = loc =>
 			{
@@ -95,7 +98,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return search;
 		}
 
-		private static IPathSearch InitialiseRRA(World world, Locomotor locomotor, Actor self, CPos from, CPos target, BlockedByActor check)
+		public static IPathSearch InitialiseRRA(World world, Locomotor locomotor, Actor self, CPos from, CPos target, BlockedByActor check)
 		{
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
 			graph.IgnoreActor = self;
