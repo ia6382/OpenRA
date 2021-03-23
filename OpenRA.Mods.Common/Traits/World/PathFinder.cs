@@ -33,12 +33,23 @@ namespace OpenRA.Mods.Common.Traits
 		/// <returns>A path from start to target</returns>
 		List<CPos> FindUnitPath(CPos source, CPos target, Actor self, Actor ignoreActor, BlockedByActor check);
 
+		/// <summary>
+		/// Calculates a path for the actor from source to destination for next W (window lenght) steps
+		/// </summary>
+		/// <returns>A W steps long path from start to target</returns>
+		List<CPos> FindUnitPathWHCA(CPos source, CPos target, Actor self, Actor ignoreActor, BlockedByActor check, int wSteps);
+
 		List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check);
 
 		/// <summary>
 		/// Calculates a path given a search specification
 		/// </summary>
 		List<CPos> FindPath(IPathSearch search);
+
+		/// <summary>
+		/// Calculates a path given a search specification for next W (window lenght) steps
+		/// </summary>
+		List<CPos> FindPathWHCA(IPathSearch search, CPos target, int wSteps);
 
 		/// <summary>
 		/// Calculates a path given two search specifications, and
@@ -99,6 +110,42 @@ namespace OpenRA.Mods.Common.Traits
 			return pb;
 		}
 
+		public List<CPos> FindUnitPathWHCA(CPos source, CPos target, Actor self, Actor ignoreActor, BlockedByActor check, int wSteps)
+		{
+			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
+			var locomotor = ((Mobile)self.OccupiesSpace).Locomotor;
+
+			if (!cached)
+			{
+				domainIndex = world.WorldActor.TraitOrDefault<DomainIndex>();
+				cached = true;
+			}
+
+			// If a water-land transition is required, bail early
+			if (domainIndex != null && !domainIndex.IsPassable(source, target, locomotor))
+				return EmptyPath;
+
+			var distance = source - target;
+			var canMoveFreely = locomotor.CanMoveFreelyInto(self, target, check, null);
+
+			// If target is neighbouring cell.
+			if (distance.LengthSquared < 3 && !canMoveFreely)
+				return new List<CPos> { };
+
+			if (source.Layer == target.Layer && distance.LengthSquared < 3 && canMoveFreely)
+				return new List<CPos> { target };
+
+			List<CPos> pb;
+
+			using (var search = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor))
+			{
+				search.Graph.IgnoreActor = self;
+				pb = FindPathWHCA(search, target, wSteps);
+			}
+
+			return pb;
+		}
+
 		public List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check)
 		{
 			if (!cached)
@@ -153,10 +200,29 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			search.Graph.Dispose();
-			/*
-			if (search.RRAsearch != null)
-				search.RRAsearch.Graph.Dispose();
-			*/
+
+			if (path != null)
+				return path;
+
+			// no path exists
+			return EmptyPath;
+		}
+
+		public List<CPos> FindPathWHCA(IPathSearch search, CPos target, int wSteps)
+		{
+			List<CPos> path = null;
+
+			while (search.CanExpand)
+			{
+				var p = search.ExpandWHCA(target);
+				if (search.IsTarget(p))
+				{
+					path = MakePath(search.Graph, p);
+					break;
+				}
+			}
+
+			search.Graph.Dispose();
 
 			if (path != null)
 				return path;

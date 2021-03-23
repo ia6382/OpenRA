@@ -68,7 +68,7 @@ namespace OpenRA
 			new CVec(0,  1),
 			new CVec(1, -1),
 			new CVec(1,  0),
-			new CVec(1,  1),
+			new CVec(1,  1)
 		};
 
 		#region Scripting interface

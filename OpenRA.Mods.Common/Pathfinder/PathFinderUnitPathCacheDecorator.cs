@@ -54,6 +54,30 @@ namespace OpenRA.Mods.Common.Pathfinder
 			}
 		}
 
+		public List<CPos> FindUnitPathWHCA(CPos source, CPos target, Actor self, Actor ignoreActor, BlockedByActor check, int wSteps)
+		{
+			using (new PerfSample("Pathfinder"))
+			{
+				var key = "FindUnitPathWHCA" + self.ActorID + source.X + source.Y + target.X + target.Y;
+
+				// Only cache path when transient actors are ignored, otherwise there is no guarantee that the path
+				// is still valid at the next check.
+				if (check == BlockedByActor.None)
+				{
+					var cachedPath = cacheStorage.Retrieve(key);
+					if (cachedPath != null)
+						return cachedPath;
+				}
+
+				var pb = pathFinder.FindUnitPathWHCA(source, target, self, ignoreActor, check, wSteps);
+
+				if (check == BlockedByActor.None)
+					cacheStorage.Store(key, pb);
+
+				return pb;
+			}
+		}
+
 		public List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check)
 		{
 			using (new PerfSample("Pathfinder"))
@@ -80,6 +104,12 @@ namespace OpenRA.Mods.Common.Pathfinder
 		{
 			using (new PerfSample("Pathfinder"))
 				return pathFinder.FindPath(search);
+		}
+
+		public List<CPos> FindPathWHCA(IPathSearch search, CPos target, int wStep)
+		{
+			using (new PerfSample("Pathfinder"))
+				return pathFinder.FindPathWHCA(search, target, wStep);
 		}
 
 		public List<CPos> FindBidiPath(IPathSearch fromSrc, IPathSearch fromDest)

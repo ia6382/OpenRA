@@ -33,12 +33,8 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		int MaxCost { get; }
 
-		/*
-		/// <summary>
-		/// search used by RRA heuristic
-		/// </summary>
-		IPathSearch RRAsearch { get; }
-		*/
+		int Tick { get; }
+
 		IPathSearch Reverse();
 
 		IPathSearch WithCustomBlocker(Func<CPos, bool> customBlock);
@@ -66,6 +62,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		bool CanExpand { get; }
 		CPos Expand();
+		CPos ExpandWHCA(CPos goal);
 	}
 
 	public abstract class BasePathSearch : IPathSearch
@@ -79,6 +76,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public Player Owner { get { return Graph.Actor.Owner; } }
 		public int MaxCost { get; protected set; }
 		public bool Debug { get; set; }
+		public int Tick { get { return Owner.World.WorldTick; } }
+		public SpaceTimeReservation SpaceTimeReservation { get; private set; }
+
 		protected Func<CPos, int> heuristic;
 		protected Func<CPos, bool> isGoal;
 		protected int heuristicWeightPercentage;
@@ -101,7 +101,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			MaxCost = 0;
 			heuristicWeightPercentage = 100;
 
-			// RRAsearch = null;
+			SpaceTimeReservation = Owner.PlayerActor.Trait<SpaceTimeReservation>();
 
 			// Determine the minimum possible cost for moving horizontally between cells based on terrain speeds.
 			// The minimum possible cost diagonally is then Sqrt(2) times more costly.
@@ -201,7 +201,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public bool CanExpand { get { return !OpenQueue.Empty; } }
 		public abstract CPos Expand();
-
+		public abstract CPos ExpandWHCA(CPos goal);
 		protected virtual void Dispose(bool disposing)
 		{
 			if (disposing)

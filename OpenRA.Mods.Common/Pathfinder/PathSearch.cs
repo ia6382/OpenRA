@@ -68,8 +68,6 @@ namespace OpenRA.Mods.Common.Pathfinder
 			// SLO: quick fix for actors that pathfind before spawning in world or have multiple froms - harvesters
 			if (froms.Count() == 1)
 			{
-				// search.RRAsearch = InitialiseRRA(world, locomotor, self, froms.First(), target, check);
-				// search.RRAsearch = self.TraitOrDefault<Mobile>().RRAsearch;
 				var rraSearch = self.Trait<Mobile>().RRAsearch;
 				search.heuristic = search.RRA(rraSearch);
 			}
@@ -169,6 +167,59 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 				var estimatedCost = gCost + hCost;
 				Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
+
+				if (neighborCell.Status != CellStatus.Open)
+					OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
+
+				if (Debug)
+				{
+					if (gCost > MaxCost)
+						MaxCost = gCost;
+
+					considered.AddLast((neighborCPos, gCost));
+				}
+			}
+
+			return currentMinNode;
+		}
+
+		public override CPos ExpandWHCA(CPos goal)
+		{
+			// var tmp = Tick;
+			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick);
+			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CPos.
+			var currentCell = Graph[currentMinNode]; // SLO: CellInfo.
+
+			Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
+
+			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
+				return currentMinNode;
+
+			foreach (var connection in Graph.GetConnections(currentMinNode))
+			{
+				var neighborCPos = connection.Destination;
+				var neighborCell = Graph[neighborCPos];
+
+				// Calculate the cost up to that point
+				var gCost = currentCell.CostSoFar;
+				if (currentMinNode != goal || neighborCPos != goal) // SLO: WHCA* edge cost for staying at goal should be 0
+					gCost += connection.Cost;
+
+				// Cost is even higher; next direction:
+				if (gCost >= neighborCell.CostSoFar)
+					continue;
+
+				// Now we may seriously consider this direction using heuristics. If the cell has
+				// already been processed, we can reuse the result (just the difference between the
+				// estimated total and the cost so far
+				int hCost;
+				if (neighborCell.Status == CellStatus.Open)
+					hCost = neighborCell.EstimatedTotal - neighborCell.CostSoFar;
+				else
+					hCost = heuristic(neighborCPos);
+
+				var estimatedCost = gCost + hCost;
+				Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open); // SLO: updatamo ampak na vrstov ne bo prisel prej ce smo nasli boljso pot do soseda
 
 				if (neighborCell.Status != CellStatus.Open)
 					OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));

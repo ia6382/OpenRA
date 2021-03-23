@@ -27,9 +27,10 @@ namespace OpenRA.Mods.Common.Activities
 
 		readonly Mobile mobile;
 		readonly WDist nearEnough;
-		readonly Func<BlockedByActor, List<CPos>> getPath;
+		readonly Func<int, BlockedByActor, List<CPos>> getPath;
 		readonly Actor ignoreActor;
 		readonly Color? targetLineColor;
+		readonly SpaceTimeReservation spaceTimeReservation;
 
 		static readonly BlockedByActor[] PathSearchOrder =
 		{
@@ -56,17 +57,23 @@ namespace OpenRA.Mods.Common.Activities
 		// Ignores lane bias and nearby units
 		public Move(Actor self, CPos destination, Color? targetLineColor = null)
 		{
+			spaceTimeReservation = self.Owner.PlayerActor.Trait<SpaceTimeReservation>();
+
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = check =>
+			getPath = (wSteps, check) =>
 			{
 				List<CPos> path;
 
 				using (var search =
 					PathSearch.FromPoint(self.World, mobile.Locomotor, self, mobile.ToCell, destination, check)
 					.WithoutLaneBias())
-					path = mobile.Pathfinder.FindPath(search);
+				{
+					search.Graph.IgnoreActor = self;
+					path = mobile.Pathfinder.FindPathWHCA(search, destination, wSteps);
+				}
+
 				return path;
 			};
 
@@ -78,14 +85,16 @@ namespace OpenRA.Mods.Common.Activities
 		public Move(Actor self, CPos destination, WDist nearEnough, Actor ignoreActor = null, bool evaluateNearestMovableCell = false,
 			Color? targetLineColor = null)
 		{
+			spaceTimeReservation = self.Owner.PlayerActor.Trait<SpaceTimeReservation>();
+
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = check =>
+			getPath = (wSteps, check) =>
 			{
 				if (!this.destination.HasValue)
 					return NoPath;
-				return mobile.Pathfinder.FindUnitPath(mobile.ToCell, this.destination.Value, self, ignoreActor, check);
+				return mobile.Pathfinder.FindUnitPathWHCA(mobile.ToCell, this.destination.Value, self, ignoreActor, check, wSteps);
 			};
 
 			// Note: Will be recalculated from OnFirstRun if evaluateNearestMovableCell is true
@@ -102,7 +111,7 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = check => mobile.Pathfinder.FindUnitPathToRange(
+			getPath = (wSteps, check) => mobile.Pathfinder.FindUnitPathToRange(
 				mobile.FromCell, subCell, self.World.Map.CenterOfSubCell(destination, subCell), nearEnough, self, check);
 
 			this.destination = destination;
@@ -115,7 +124,7 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = check =>
+			getPath = (wSteps, check) =>
 			{
 				if (!target.IsValidFor(self))
 					return NoPath;
@@ -129,8 +138,10 @@ namespace OpenRA.Mods.Common.Activities
 			this.targetLineColor = targetLineColor;
 		}
 
-		public Move(Actor self, Func<BlockedByActor, List<CPos>> getPath, Color? targetLineColor = null)
+		public Move(Actor self, Func<int, BlockedByActor, List<CPos>> getPath, Color? targetLineColor = null)
 		{
+			spaceTimeReservation = self.Owner.PlayerActor.Trait<SpaceTimeReservation>();
+
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
@@ -151,12 +162,14 @@ namespace OpenRA.Mods.Common.Activities
 			return hash;
 		}
 
-		List<CPos> EvalPath(BlockedByActor check)
+		List<CPos> EvalPath(World world, BlockedByActor check)
 		{
+			// var tmp = world.WorldTick;
+			// var tmp2 = spaceTimeReservation.Check(1, 1, tmp);
 			Stopwatch stopWatch = new Stopwatch(); // SLO
 			stopWatch.Start();
 
-			var path = getPath(check).TakeWhile(a => a != mobile.ToCell).ToList();
+			var path = getPath(mobile.W - wCounter, check).TakeWhile(a => a != mobile.ToCell).ToList();
 
 			stopWatch.Stop();
 
@@ -177,7 +190,6 @@ namespace OpenRA.Mods.Common.Activities
 			// SLO: in case RRA was initialised in MoveAdjacentTo
 			if (destination.HasValue)
 				mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, mobile.Locomotor, self, mobile.ToCell, destination.Value, BlockedByActor.Immovable);
-			/*
 			if (evaluateNearestMovableCell && destination.HasValue)
 			{
 				var movableDestination = mobile.NearestMoveableCell(destination.Value);
@@ -187,15 +199,15 @@ namespace OpenRA.Mods.Common.Activities
 			// TODO: Change this to BlockedByActor.Stationary after improving the local avoidance behaviour
 			foreach (var check in PathSearchOrder)
 			{
-				path = EvalPath(check);
+				path = EvalPath(self.World, check);
 				if (path.Count > 0)
 					return;
 			}
-			*/
 		}
 
 		public override bool Tick(Actor self)
 		{
+			/*
 			if (wCounter == 0 || wCounter == mobile.W / 2)
 			{
 				// SLO: start a new search for next W steps
@@ -219,7 +231,7 @@ namespace OpenRA.Mods.Common.Activities
 			{
 				// SLO: spodnja koda NEDOKONCANA JE CELA TICK METODA!
 			}
-
+			*/
 			// Continue moving along found path.
 			mobile.TurnToMove = false;
 
@@ -281,7 +293,7 @@ namespace OpenRA.Mods.Common.Activities
 			// Something else might have moved us, so the path is no longer valid.
 			if (!Util.AreAdjacentCells(mobile.ToCell, nextCell))
 			{
-				path = EvalPath(BlockedByActor.Immovable);
+				path = EvalPath(self.World, BlockedByActor.Immovable);
 				return null;
 			}
 
@@ -322,7 +334,7 @@ namespace OpenRA.Mods.Common.Activities
 				// There is no point in waiting for the other actor to move if it is incapable of moving.
 				if (!mobile.CanEnterCell(nextCell, ignoreActor, BlockedByActor.Immovable))
 				{
-					path = EvalPath(BlockedByActor.Immovable);
+					path = EvalPath(self.World, BlockedByActor.Immovable);
 					return null;
 				}
 
@@ -348,7 +360,7 @@ namespace OpenRA.Mods.Common.Activities
 
 				// Calculate a new path
 				mobile.RemoveInfluence();
-				var newPath = EvalPath(BlockedByActor.All);
+				var newPath = EvalPath(self.World, BlockedByActor.All);
 				mobile.AddInfluence();
 
 				if (newPath.Count != 0)

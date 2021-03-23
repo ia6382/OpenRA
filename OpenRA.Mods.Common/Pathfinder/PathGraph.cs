@@ -120,15 +120,15 @@ namespace OpenRA.Mods.Common.Pathfinder
 		// the cell directly between them and our parent is passable.
 		static readonly CVec[][] DirectedNeighbors =
 		{
-			new[] { new CVec(-1, -1), new CVec(0, -1), new CVec(1, -1), new CVec(-1, 0), new CVec(-1, 1) },
-			new[] { new CVec(-1, -1), new CVec(0, -1), new CVec(1, -1) },
-			new[] { new CVec(-1, -1), new CVec(0, -1), new CVec(1, -1), new CVec(1, 0), new CVec(1, 1) },
-			new[] { new CVec(-1, -1), new CVec(-1, 0), new CVec(-1, 1) },
-			CVec.Directions,
-			new[] { new CVec(1, -1), new CVec(1, 0), new CVec(1, 1) },
-			new[] { new CVec(-1, -1), new CVec(-1, 0), new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1) },
-			new[] { new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1) },
-			new[] { new CVec(1, -1), new CVec(1, 0), new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1) },
+			new[] { new CVec(-1, -1), new CVec(0, -1), new CVec(1, -1), new CVec(-1, 0), new CVec(-1, 1), new CVec(0, 0) },
+			new[] { new CVec(-1, -1), new CVec(0, -1), new CVec(1, -1), new CVec(0, 0) },
+			new[] { new CVec(-1, -1), new CVec(0, -1), new CVec(1, -1), new CVec(1, 0), new CVec(1, 1), new CVec(0, 0) },
+			new[] { new CVec(-1, -1), new CVec(-1, 0), new CVec(-1, 1), new CVec(0, 0) },
+			new[] { new CVec(-1, -1), new CVec(-1,  0), new CVec(-1,  1), new CVec(0, -1), new CVec(0,  1), new CVec(1, -1), new CVec(1,  0), new CVec(1,  1), new CVec(0, 0) },
+			new[] { new CVec(1, -1), new CVec(1, 0), new CVec(1, 1), new CVec(0, 0) },
+			new[] { new CVec(-1, -1), new CVec(-1, 0), new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1), new CVec(0, 0) },
+			new[] { new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1), new CVec(0, 0) },
+			new[] { new CVec(1, -1), new CVec(1, 0), new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1), new CVec(0, 0) },
 		};
 
 		public List<GraphConnection> GetConnections(CPos position)

@@ -29,7 +29,7 @@ namespace OpenRA.Mods.Common.Traits
 			Info = info;
 			Self = self;
 
-			if (!Self.Owner.NonCombatant)
+			if (!Self.Owner.Spectating)
 				reservationTable = new SparseMatrix<uint>();
 			else
 				reservationTable = null;
