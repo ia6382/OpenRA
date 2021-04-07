@@ -9,6 +9,7 @@
  */
 #endregion
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenRA.Activities;
@@ -83,8 +84,8 @@ namespace OpenRA.Mods.Common.Activities
 
 		protected override void OnFirstRun(Actor self)
 		{
-			Mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, Mobile.Locomotor, self, Mobile.ToCell, lastVisibleTargetLocation, BlockedByActor.Immovable);
-			QueueChild(Mobile.MoveTo((wSteps, check) => CalculatePathToTarget(self, check, wSteps)));
+			// Mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, Mobile.Locomotor, self, Mobile.ToCell, lastVisibleTargetLocation, BlockedByActor.Immovable);
+			QueueChild(Mobile.MoveTo(lastVisibleTargetLocation, (wSteps, check) => CalculatePathToTarget(self, check, wSteps)));
 		}
 
 		public override bool Tick(Actor self)
@@ -113,20 +114,22 @@ namespace OpenRA.Mods.Common.Activities
 
 			// Target has moved, and MoveAdjacentTo is still valid.
 			if (!IsCanceling && shouldRepath)
-				QueueChild(Mobile.MoveTo((wSteps, check) => CalculatePathToTarget(self, check, wSteps)));
+				QueueChild(Mobile.MoveTo(lastVisibleTargetLocation, (wSteps, check) => CalculatePathToTarget(self, check, wSteps)));
 
 			// The last queued childactivity is guaranteed to be the inner move, so if the childactivity
 			// queue is empty it means we have reached our destination.
 			return TickChild(self);
 		}
 
+		/*
 		List<CPos> searchCells = new List<CPos>();
 		int searchCellsTick = -1;
-
+		*/
 		List<CPos> CalculatePathToTarget(Actor self, BlockedByActor check, int wSteps)
 		{
 			var loc = self.Location;
 
+			/*
 			// PERF: Assume that CandidateMovementCells doesn't change within a tick to avoid repeated queries
 			// when Move enumerates different BlockedByActor values
 			if (searchCellsTick != self.World.WorldTick)
@@ -141,7 +144,6 @@ namespace OpenRA.Mods.Common.Activities
 			if (!searchCells.Any())
 				return NoPath;
 
-			/*
 			using (var fromSrc = PathSearch.FromPoints(self.World, Mobile.Locomotor, self, searchCells, loc, check))
 			using (var fromDest = PathSearch.FromPoint(self.World, Mobile.Locomotor, self, loc, lastVisibleTargetLocation, check).Reverse())
 				return pathFinder.FindBidiPath(fromSrc, fromDest);
@@ -149,7 +151,7 @@ namespace OpenRA.Mods.Common.Activities
 			using (var search = PathSearch.FromPoint(self.World, Mobile.Locomotor, self, loc, lastVisibleTargetLocation, check))
 			{
 				search.Graph.IgnoreActor = self;
-				return pathFinder.FindPathWHCA(search, loc, wSteps);
+				return pathFinder.FindPathWHCA(search, lastVisibleTargetLocation, wSteps);
 			}
 		}
 

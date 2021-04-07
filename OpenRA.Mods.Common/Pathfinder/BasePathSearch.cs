@@ -82,6 +82,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		protected Func<CPos, int> heuristic;
 		protected Func<CPos, bool> isGoal;
 		protected int heuristicWeightPercentage;
+		protected Func<CPos, bool> isInRAA;
 
 		// public IPathSearch RRAsearch { get; set; }
 		// This member is used to compute the ID of PathSearch.
@@ -139,6 +140,15 @@ namespace OpenRA.Mods.Common.Pathfinder
 					return rraSearch.Graph[here].CostSoFar;
 				else
 					return int.MaxValue;
+			};
+		}
+
+		protected Func<CPos, bool> IsInRRA(IPathSearch rraSearch)
+		{
+			return here =>
+			{
+				var cell = rraSearch.Graph[here];
+				return cell.Status == CellStatus.Closed;
 			};
 		}
 

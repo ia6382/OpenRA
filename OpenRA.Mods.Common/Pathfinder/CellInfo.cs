@@ -19,7 +19,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 	{
 		Unvisited,
 		Open,
-		Closed
+		Closed,
+		Duplicate,
+		Invalid
 	}
 
 	/// <summary>

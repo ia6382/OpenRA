@@ -70,6 +70,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			{
 				var rraSearch = self.Trait<Mobile>().RRAsearch;
 				search.heuristic = search.RRA(rraSearch);
+				search.isInRAA = search.IsInRRA(rraSearch);
 			}
 			else
 				search.heuristic = search.DefaultEstimator(target);
@@ -136,10 +137,24 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// <returns>The most promising node of the iteration</returns>
 		public override CPos Expand()
 		{
-			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CellPos.
-
+			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CPos.
 			var currentCell = Graph[currentMinNode]; // SLO: CellInfo.
-			Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed); // SLO: oznaci kot closed.
+
+			if (IsTarget(currentMinNode))
+			{
+				// So we can resume RRA* next time in case OpenQueue is empty
+				if (OpenQueue.Empty)
+					OpenQueue.Add(new GraphConnection(currentMinNode, currentCell.EstimatedTotal));
+				return currentMinNode;
+			}
+
+			// Check for duplicates and mark them as invalids
+			if (currentCell.Status == CellStatus.Duplicate)
+				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid);
+			else if (currentCell.Status == CellStatus.Invalid)
+				return currentMinNode;
+			else
+				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
 
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
 				return currentMinNode;
@@ -166,10 +181,14 @@ namespace OpenRA.Mods.Common.Pathfinder
 					hCost = heuristic(neighborCPos);
 
 				var estimatedCost = gCost + hCost;
-				Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
 
-				if (neighborCell.Status != CellStatus.Open)
-					OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
+				// Mark duplicates in priority queue
+				if (neighborCell.Status == CellStatus.Open || neighborCell.Status == CellStatus.Duplicate || neighborCell.Status == CellStatus.Invalid)
+					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Duplicate);
+				else
+					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
+
+				OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
 
 				if (Debug)
 				{
@@ -187,15 +206,28 @@ namespace OpenRA.Mods.Common.Pathfinder
 		{
 			// var tmp = Tick;
 			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick);
-			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CPos.
-			var currentCell = Graph[currentMinNode]; // SLO: CellInfo.
+			var currentMinNode = OpenQueue.Pop().Destination;
+			var currentCell = Graph[currentMinNode];
 
-			Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
+			// Check for duplicates and mark them as invalids
+			if (currentCell.Status == CellStatus.Duplicate)
+				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid);
+			else if (currentCell.Status == CellStatus.Invalid)
+				return currentMinNode;
+			else
+				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
 
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
 				return currentMinNode;
 
-			foreach (var connection in Graph.GetConnections(currentMinNode))
+			// Optimization: consider only neighbours already processed by RRA (if possible)
+			var neighbours = Graph.GetConnections(currentMinNode);
+			var rraNodes = neighbours.Where(x => isInRAA(x.Destination) && x.Destination != currentMinNode && x.Destination != currentCell.PreviousPos);
+			if (rraNodes.Any())
+				neighbours = rraNodes.ToList();
+			else { } // breakpoint stop
+
+			foreach (var connection in neighbours)
 			{
 				var neighborCPos = connection.Destination;
 				var neighborCell = Graph[neighborCPos];
@@ -206,7 +238,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 					gCost += connection.Cost;
 
 				// Cost is even higher; next direction:
-				if (gCost >= neighborCell.CostSoFar)
+				if (gCost > neighborCell.CostSoFar)
 					continue;
 
 				// Now we may seriously consider this direction using heuristics. If the cell has
@@ -219,10 +251,14 @@ namespace OpenRA.Mods.Common.Pathfinder
 					hCost = heuristic(neighborCPos);
 
 				var estimatedCost = gCost + hCost;
-				Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open); // SLO: updatamo ampak na vrstov ne bo prisel prej ce smo nasli boljso pot do soseda
 
-				if (neighborCell.Status != CellStatus.Open)
-					OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
+				// Mark duplicates in priority queue
+				if (neighborCell.Status == CellStatus.Open || neighborCell.Status == CellStatus.Duplicate || neighborCell.Status == CellStatus.Invalid)
+					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Duplicate);
+				else
+					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
+
+				OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
 
 				if (Debug)
 				{

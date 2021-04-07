@@ -138,7 +138,7 @@ namespace OpenRA.Mods.Common.Activities
 			this.targetLineColor = targetLineColor;
 		}
 
-		public Move(Actor self, Func<int, BlockedByActor, List<CPos>> getPath, Color? targetLineColor = null)
+		public Move(Actor self, Func<int, BlockedByActor, List<CPos>> getPath, CPos lastVisibleTargetLocation, Color? targetLineColor = null)
 		{
 			spaceTimeReservation = self.Owner.PlayerActor.Trait<SpaceTimeReservation>();
 
@@ -147,7 +147,7 @@ namespace OpenRA.Mods.Common.Activities
 
 			this.getPath = getPath;
 
-			destination = null;
+			destination = lastVisibleTargetLocation;
 			nearEnough = WDist.Zero;
 			this.targetLineColor = targetLineColor;
 		}
@@ -187,14 +187,15 @@ namespace OpenRA.Mods.Common.Activities
 		{
 			wCounter = 0;
 
-			// SLO: in case RRA was initialised in MoveAdjacentTo
-			if (destination.HasValue)
-				mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, mobile.Locomotor, self, mobile.ToCell, destination.Value, BlockedByActor.Immovable);
 			if (evaluateNearestMovableCell && destination.HasValue)
 			{
 				var movableDestination = mobile.NearestMoveableCell(destination.Value);
 				destination = mobile.CanEnterCell(movableDestination, check: BlockedByActor.Immovable) ? movableDestination : (CPos?)null;
 			}
+
+			// SLO: in case RRA was initialised in MoveAdjacentTo
+			// if (destination.HasValue)
+			mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, mobile.Locomotor, self, mobile.ToCell, destination.Value, BlockedByActor.Immovable);
 
 			// TODO: Change this to BlockedByActor.Stationary after improving the local avoidance behaviour
 			foreach (var check in PathSearchOrder)

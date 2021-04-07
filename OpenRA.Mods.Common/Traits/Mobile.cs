@@ -790,7 +790,7 @@ namespace OpenRA.Mods.Common.Traits
 		}
 
 		public Activity ScriptedMove(CPos cell) { return new Move(self, cell); }
-		public Activity MoveTo(Func<int, BlockedByActor, List<CPos>> pathFunc) { return new Move(self, pathFunc); }
+		public Activity MoveTo(CPos lastVisibleTargetLocation, Func<int, BlockedByActor, List<CPos>> pathFunc) { return new Move(self, pathFunc, lastVisibleTargetLocation); }
 
 		Activity VisualMove(Actor self, WPos fromPos, WPos toPos, CPos cell)
 		{

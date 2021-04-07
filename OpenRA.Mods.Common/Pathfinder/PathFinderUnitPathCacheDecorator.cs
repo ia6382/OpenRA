@@ -106,10 +106,10 @@ namespace OpenRA.Mods.Common.Pathfinder
 				return pathFinder.FindPath(search);
 		}
 
-		public List<CPos> FindPathWHCA(IPathSearch search, CPos target, int wStep)
+		public List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wStep)
 		{
 			using (new PerfSample("Pathfinder"))
-				return pathFinder.FindPathWHCA(search, target, wStep);
+				return pathFinder.FindPathWHCA(search, goal, wStep);
 		}
 
 		public List<CPos> FindBidiPath(IPathSearch fromSrc, IPathSearch fromDest)

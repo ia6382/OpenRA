@@ -49,7 +49,7 @@ namespace OpenRA.Mods.Common.Traits
 		/// <summary>
 		/// Calculates a path given a search specification for next W (window lenght) steps
 		/// </summary>
-		List<CPos> FindPathWHCA(IPathSearch search, CPos target, int wSteps);
+		List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wSteps);
 
 		/// <summary>
 		/// Calculates a path given two search specifications, and
@@ -208,13 +208,13 @@ namespace OpenRA.Mods.Common.Traits
 			return EmptyPath;
 		}
 
-		public List<CPos> FindPathWHCA(IPathSearch search, CPos target, int wSteps)
+		public List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wSteps)
 		{
 			List<CPos> path = null;
 
 			while (search.CanExpand)
 			{
-				var p = search.ExpandWHCA(target);
+				var p = search.ExpandWHCA(goal);
 				if (search.IsTarget(p))
 				{
 					path = MakePath(search.Graph, p);
