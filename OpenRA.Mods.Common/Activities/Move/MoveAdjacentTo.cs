@@ -125,7 +125,7 @@ namespace OpenRA.Mods.Common.Activities
 		List<CPos> searchCells = new List<CPos>();
 		int searchCellsTick = -1;
 		*/
-		List<CPos> CalculatePathToTarget(Actor self, BlockedByActor check, int wSteps)
+		List<CPos> CalculatePathToTarget(Actor self, BlockedByActor check, int wLimit)
 		{
 			var loc = self.Location;
 
@@ -151,7 +151,7 @@ namespace OpenRA.Mods.Common.Activities
 			using (var search = PathSearch.FromPoint(self.World, Mobile.Locomotor, self, loc, lastVisibleTargetLocation, check))
 			{
 				search.Graph.IgnoreActor = self;
-				return pathFinder.FindPathWHCA(search, lastVisibleTargetLocation, wSteps);
+				return pathFinder.FindPathWHCA(search, lastVisibleTargetLocation, wLimit);
 			}
 		}
 

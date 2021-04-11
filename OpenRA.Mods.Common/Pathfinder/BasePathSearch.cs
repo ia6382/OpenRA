@@ -17,12 +17,38 @@ using OpenRA.Primitives;
 
 namespace OpenRA.Mods.Common.Pathfinder
 {
+	public class PathDict
+	{
+		private Dictionary<CPos, List<CPos>> data = new Dictionary<CPos, List<CPos>>();
+
+		public List<CPos> this[CPos key]
+		{
+			get
+			{
+				if (data.ContainsKey(key))
+					return data[key];
+				else
+					return new List<CPos>();
+			}
+
+			set
+			{
+				if (data.ContainsKey(key))
+					data[key] = value;
+				else
+					data.Add(key, value);
+			}
+		}
+	}
+
 	public interface IPathSearch : IDisposable
 	{
 		/// <summary>
 		/// The Graph used by the A*
 		/// </summary>
 		IGraph<CellInfo> Graph { get; }
+
+		PathDict Paths { get; }
 
 		/// <summary>
 		/// Stores the analyzed nodes by the expand function
@@ -62,6 +88,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		bool CanExpand { get; }
 		CPos Expand();
+		CPos ExpandRRA(Func<CPos, bool> targetGoalFound);
 		CPos ExpandWHCA(CPos goal);
 	}
 
@@ -78,6 +105,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public bool Debug { get; set; }
 		public int Tick { get { return Owner.World.WorldTick; } }
 		public SpaceTimeReservation SpaceTimeReservation { get; private set; }
+		public PathDict Paths { get; private set; }
 
 		protected Func<CPos, int> heuristic;
 		protected Func<CPos, bool> isGoal;
@@ -103,6 +131,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			heuristicWeightPercentage = 100;
 
 			SpaceTimeReservation = Owner.PlayerActor.Trait<SpaceTimeReservation>();
+			Paths = new PathDict();
 
 			// Determine the minimum possible cost for moving horizontally between cells based on terrain speeds.
 			// The minimum possible cost diagonally is then Sqrt(2) times more costly.
@@ -211,6 +240,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public bool CanExpand { get { return !OpenQueue.Empty; } }
 		public abstract CPos Expand();
+		public abstract CPos ExpandRRA(Func<CPos, bool> targetGoalFound);
 		public abstract CPos ExpandWHCA(CPos goal);
 		protected virtual void Dispose(bool disposing)
 		{

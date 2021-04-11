@@ -40,7 +40,19 @@ namespace OpenRA.Mods.Common.Activities
 			BlockedByActor.None
 		};
 
-		List<CPos> path;
+		// List<CPos> path; TEMPORARY PROPERTY FOR DEBUG PORPUSES
+		private List<CPos> fpath;
+#pragma warning disable IDE1006 // Naming Styles
+#pragma warning disable SA1300 // Element should begin with upper-case letter
+		public List<CPos> path
+#pragma warning restore SA1300 // Element should begin with upper-case letter
+#pragma warning restore IDE1006 // Naming Styles
+		{
+			get { return fpath; }
+
+			set { fpath = value; }
+		}
+
 		CPos? destination;
 
 		// For counting moves until mobile.W/2
@@ -62,7 +74,7 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = (wSteps, check) =>
+			getPath = (wLimit, check) =>
 			{
 				List<CPos> path;
 
@@ -71,12 +83,13 @@ namespace OpenRA.Mods.Common.Activities
 					.WithoutLaneBias())
 				{
 					search.Graph.IgnoreActor = self;
-					path = mobile.Pathfinder.FindPathWHCA(search, destination, wSteps);
+					path = mobile.Pathfinder.FindPathWHCA(search, destination, wLimit);
 				}
 
 				return path;
 			};
 
+			ignoreActor = self;
 			this.destination = destination;
 			this.targetLineColor = targetLineColor;
 			nearEnough = WDist.Zero;
@@ -85,23 +98,23 @@ namespace OpenRA.Mods.Common.Activities
 		public Move(Actor self, CPos destination, WDist nearEnough, Actor ignoreActor = null, bool evaluateNearestMovableCell = false,
 			Color? targetLineColor = null)
 		{
+			this.ignoreActor = self;
 			spaceTimeReservation = self.Owner.PlayerActor.Trait<SpaceTimeReservation>();
 
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = (wSteps, check) =>
+			getPath = (wLimit, check) =>
 			{
 				if (!this.destination.HasValue)
 					return NoPath;
-				return mobile.Pathfinder.FindUnitPathWHCA(mobile.ToCell, this.destination.Value, self, ignoreActor, check, wSteps);
+				return mobile.Pathfinder.FindUnitPathWHCA(mobile.ToCell, this.destination.Value, self, this.ignoreActor, check, wLimit);
 			};
 
 			// Note: Will be recalculated from OnFirstRun if evaluateNearestMovableCell is true
 			this.destination = destination;
 
 			this.nearEnough = nearEnough;
-			this.ignoreActor = ignoreActor;
 			this.evaluateNearestMovableCell = evaluateNearestMovableCell;
 			this.targetLineColor = targetLineColor;
 		}
@@ -111,7 +124,7 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = (wSteps, check) => mobile.Pathfinder.FindUnitPathToRange(
+			getPath = (wLimit, check) => mobile.Pathfinder.FindUnitPathToRange(
 				mobile.FromCell, subCell, self.World.Map.CenterOfSubCell(destination, subCell), nearEnough, self, check);
 
 			this.destination = destination;
@@ -124,7 +137,7 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
-			getPath = (wSteps, check) =>
+			getPath = (wLimit, check) =>
 			{
 				if (!target.IsValidFor(self))
 					return NoPath;
@@ -146,7 +159,7 @@ namespace OpenRA.Mods.Common.Activities
 			mobile = (Mobile)self.OccupiesSpace;
 
 			this.getPath = getPath;
-
+			ignoreActor = self;
 			destination = lastVisibleTargetLocation;
 			nearEnough = WDist.Zero;
 			this.targetLineColor = targetLineColor;
@@ -169,7 +182,7 @@ namespace OpenRA.Mods.Common.Activities
 			Stopwatch stopWatch = new Stopwatch(); // SLO
 			stopWatch.Start();
 
-			var path = getPath(mobile.W - wCounter, check).TakeWhile(a => a != mobile.ToCell).ToList();
+			var path = getPath(mobile.W - wCounter, check); // .TakeWhile(a => a != mobile.ToCell).ToList();
 
 			stopWatch.Stop();
 
@@ -196,43 +209,31 @@ namespace OpenRA.Mods.Common.Activities
 			// SLO: in case RRA was initialised in MoveAdjacentTo
 			// if (destination.HasValue)
 			mobile.RRAsearch = PathSearch.InitialiseRRA(self.World, mobile.Locomotor, self, mobile.ToCell, destination.Value, BlockedByActor.Immovable);
+		}
+
+		protected void InitiliseWindowedSearch(Actor self)
+		{
+			wCounter = 0;
 
 			// TODO: Change this to BlockedByActor.Stationary after improving the local avoidance behaviour
 			foreach (var check in PathSearchOrder)
 			{
 				path = EvalPath(self.World, check);
 				if (path.Count > 0)
+				{
+					wCounter = 1;
 					return;
+				}
 			}
+
+			wCounter = 1;
 		}
 
 		public override bool Tick(Actor self)
 		{
-			/*
-			if (wCounter == 0 || wCounter == mobile.W / 2)
-			{
-				// SLO: start a new search for next W steps
-				if (evaluateNearestMovableCell && destination.HasValue)
-				{
-					var movableDestination = mobile.NearestMoveableCell(destination.Value);
-					destination = mobile.CanEnterCell(movableDestination, check: BlockedByActor.Immovable) ? movableDestination : (CPos?)null;
-				}
+			if (wCounter == 0 || wCounter == mobile.W / 2 + 1)
+				InitiliseWindowedSearch(self);
 
-				// TODO: Change this to BlockedByActor.Stationary after improving the local avoidance behaviour
-				foreach (var check in PathSearchOrder)
-				{
-					path = EvalPath(check);
-					if (path.Count > 0)
-						break;
-				}
-			}
-
-			// (wCounter < mobile.W / 2)
-			else
-			{
-				// SLO: spodnja koda NEDOKONCANA JE CELA TICK METODA!
-			}
-			*/
 			// Continue moving along found path.
 			mobile.TurnToMove = false;
 
@@ -246,8 +247,10 @@ namespace OpenRA.Mods.Common.Activities
 			if (mobile.IsTraitDisabled || mobile.IsTraitPaused)
 				return false;
 
+			/*
 			if (destination == mobile.ToCell)
 				return true;
+			*/
 
 			if (path.Count == 0)
 			{
@@ -629,6 +632,8 @@ namespace OpenRA.Mods.Common.Activities
 
 			protected override MovePart OnComplete(Actor self, Mobile mobile, Move parent)
 			{
+				Move.wCounter += 1;
+
 				mobile.SetPosition(self, mobile.ToCell);
 				return null;
 			}

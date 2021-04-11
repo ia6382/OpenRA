@@ -49,7 +49,7 @@ namespace OpenRA.Mods.Common.Traits
 		/// <summary>
 		/// Calculates a path given a search specification for next W (window lenght) steps
 		/// </summary>
-		List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wSteps);
+		List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wLimit);
 
 		/// <summary>
 		/// Calculates a path given two search specifications, and
@@ -128,11 +128,11 @@ namespace OpenRA.Mods.Common.Traits
 			var distance = source - target;
 			var canMoveFreely = locomotor.CanMoveFreelyInto(self, target, check, null);
 
-			// If target is neighbouring cell.
-			if (distance.LengthSquared < 3 && !canMoveFreely)
+			// If target is neighbouring cell. Do not check if target is waiting in current cell (= distance is 0)
+			if (distance.LengthSquared != 0 && distance.LengthSquared < 3 && !canMoveFreely)
 				return new List<CPos> { };
 
-			if (source.Layer == target.Layer && distance.LengthSquared < 3 && canMoveFreely)
+			if (distance.LengthSquared != 0 && source.Layer == target.Layer && distance.LengthSquared < 3 && canMoveFreely)
 				return new List<CPos> { target };
 
 			List<CPos> pb;
@@ -208,16 +208,18 @@ namespace OpenRA.Mods.Common.Traits
 			return EmptyPath;
 		}
 
-		public List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wSteps)
+		public List<CPos> FindPathWHCA(IPathSearch search, CPos goal, int wLimit)
 		{
 			List<CPos> path = null;
 
 			while (search.CanExpand)
 			{
 				var p = search.ExpandWHCA(goal);
-				if (search.IsTarget(p))
+
+				if (search.Paths[p].Count >= wLimit)
 				{
-					path = MakePath(search.Graph, p);
+					search.Paths[p].Reverse();
+					path = search.Paths[p];
 					break;
 				}
 			}
@@ -235,12 +237,17 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			while (search.CanExpand)
 			{
-				var p = search.Expand();
+				var p = search.ExpandRRA(x => IsNodeN(x, n));
 				if (p.X == n.X & p.Y == n.Y)
 					return true;
 			}
 
 			return false;
+		}
+
+		private static bool IsNodeN(CPos x, CPos n)
+		{
+			return (x.X == n.X && x.Y == n.Y);
 		}
 
 		// Searches from both ends toward each other. This is used to prevent blockings in case we find

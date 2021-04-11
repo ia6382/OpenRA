@@ -137,10 +137,15 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// <returns>The most promising node of the iteration</returns>
 		public override CPos Expand()
 		{
+			return ExpandRRA(x => IsTarget(x));
+		}
+
+		public override CPos ExpandRRA(Func<CPos, bool> targetGoalFound)
+		{
 			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CPos.
 			var currentCell = Graph[currentMinNode]; // SLO: CellInfo.
 
-			if (IsTarget(currentMinNode))
+			if (targetGoalFound(currentMinNode))
 			{
 				// So we can resume RRA* next time in case OpenQueue is empty
 				if (OpenQueue.Empty)
@@ -208,6 +213,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick);
 			var currentMinNode = OpenQueue.Pop().Destination;
 			var currentCell = Graph[currentMinNode];
+			var currentPath = Paths[currentMinNode];
 
 			// Check for duplicates and mark them as invalids
 			if (currentCell.Status == CellStatus.Duplicate)
@@ -222,9 +228,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 			// Optimization: consider only neighbours already processed by RRA (if possible)
 			var neighbours = Graph.GetConnections(currentMinNode);
-			var rraNodes = neighbours.Where(x => isInRAA(x.Destination) && x.Destination != currentMinNode && x.Destination != currentCell.PreviousPos);
-			if (rraNodes.Any())
-				neighbours = rraNodes.ToList();
+			var allRRANodes = neighbours.Where(x => isInRAA(x.Destination));
+			var forwardRRANodes = allRRANodes.Where(x => x.Destination != currentMinNode && x.Destination != currentCell.PreviousPos);
+
+			if (forwardRRANodes.Any() && currentMinNode != currentCell.PreviousPos) // + if we are standing still (wait action) ignore this optimization
+				neighbours = allRRANodes.ToList();
 			else { } // breakpoint stop
 
 			foreach (var connection in neighbours)
@@ -259,6 +267,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
 
 				OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
+				var neighbourPath = currentPath.ToList(); // copy list
+				neighbourPath.Add(neighborCPos);
+				Paths[neighborCPos] = neighbourPath;
 
 				if (Debug)
 				{
