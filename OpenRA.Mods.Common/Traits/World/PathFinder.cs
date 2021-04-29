@@ -133,8 +133,9 @@ namespace OpenRA.Mods.Common.Traits
 				return new List<CPos> { };
 
 			if (distance.LengthSquared != 0 && source.Layer == target.Layer && distance.LengthSquared < 3 && canMoveFreely)
-				return new List<CPos> { target };
+				return Enumerable.Repeat(target, wSteps).ToList();
 
+			// return new List<CPos> { target } * wSteps;
 			List<CPos> pb;
 
 			using (var search = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor))

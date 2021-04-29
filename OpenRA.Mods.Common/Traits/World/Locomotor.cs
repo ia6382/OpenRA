@@ -186,7 +186,7 @@ namespace OpenRA.Mods.Common.Traits
 			return terrainInfos[index].Speed;
 		}
 
-		public short MovementCostToEnterCell(Actor actor, CPos destNode, BlockedByActor check, Actor ignoreActor)
+		public short MovementCostToEnterCell(Actor actor, CPos destNode, BlockedByActor check, Actor ignoreActor, Func<Actor, CPos, BlockedByActor, Actor, bool> canMoveInto)
 		{
 			if (!world.Map.Contains(destNode))
 				return short.MaxValue;
@@ -194,7 +194,7 @@ namespace OpenRA.Mods.Common.Traits
 			var cellCost = destNode.Layer == 0 ? cellsCost[destNode] : customLayerCellsCost[destNode.Layer][destNode];
 
 			if (cellCost == short.MaxValue ||
-				!CanMoveFreelyInto(actor, destNode, check, ignoreActor))
+				!canMoveInto(actor, destNode, check, ignoreActor))
 				return short.MaxValue;
 
 			return cellCost;
@@ -208,6 +208,66 @@ namespace OpenRA.Mods.Common.Traits
 
 		public bool CanMoveFreelyInto(Actor actor, CPos cell, SubCell subCell, BlockedByActor check, Actor ignoreActor)
 		{
+			var cellCache = GetCache(cell);
+			var cellFlag = cellCache.CellFlag;
+
+			// If the check allows: We are not blocked by transient actors.
+			if (check == BlockedByActor.None)
+				return true;
+
+			// No actor in the cell or free SubCell.
+			if (cellFlag == CellFlag.HasFreeSpace)
+				return true;
+
+			// If actor is null we're just checking what would happen theoretically.
+			// In such a scenario - we'll just assume any other actor in the cell will block us by default.
+			// If we have a real actor, we can then perform the extra checks that allow us to avoid being blocked.
+			if (actor == null)
+				return false;
+
+			// All actors that may be in the cell can be crushed.
+			if (cellCache.Crushable.Overlaps(actor.Owner.PlayerMask))
+				return true;
+
+			// If the check allows: We are not blocked by moving units.
+			if (check <= BlockedByActor.Stationary && !cellFlag.HasCellFlag(CellFlag.HasStationaryActor))
+				return true;
+
+			// If the check allows: We are not blocked by units that we can force to move out of the way.
+			if (check <= BlockedByActor.Immovable && !cellCache.Immovable.Overlaps(actor.Owner.PlayerMask))
+				return true;
+
+			// Cache doesn't account for ignored actors, temporary blockers, or subcells - these must use the slow path.
+			if (ignoreActor == null && !cellFlag.HasCellFlag(CellFlag.HasTemporaryBlocker) && subCell == SubCell.FullCell)
+			{
+				// We already know there are uncrushable actors in the cell so we are always blocked.
+				if (check == BlockedByActor.All)
+					return false;
+
+				// We already know there are either immovable or stationary actors which the check does not allow.
+				if (!cellFlag.HasCellFlag(CellFlag.HasCrushableActor))
+					return false;
+
+				// All actors in the cell are immovable and some cannot be crushed.
+				if (!cellFlag.HasCellFlag(CellFlag.HasMovableActor))
+					return false;
+
+				// All actors in the cell are stationary and some cannot be crushed.
+				if (check == BlockedByActor.Stationary && !cellFlag.HasCellFlag(CellFlag.HasMovingActor))
+					return false;
+			}
+
+			var otherActors = subCell == SubCell.FullCell ? world.ActorMap.GetActorsAt(cell) : world.ActorMap.GetActorsAt(cell, subCell);
+			foreach (var otherActor in otherActors)
+				if (IsBlockedBy(actor, otherActor, ignoreActor, cell, check, cellFlag))
+					return false;
+
+			return true;
+		}
+
+		public bool CanMoveFreelyIntoWHCA(Actor actor, CPos cell, BlockedByActor check, Actor ignoreActor)
+		{
+			var subCell = SubCell.FullCell;
 			var cellCache = GetCache(cell);
 			var cellFlag = cellCache.CellFlag;
 

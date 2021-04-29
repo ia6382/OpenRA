@@ -27,6 +27,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// <summary>
 		/// Gets all the Connections for a given node in the graph
 		/// </summary>
+		List<GraphConnection> GetConnectionsWHCA(CPos position);
 		List<GraphConnection> GetConnections(CPos position);
 
 		/// <summary>
@@ -131,7 +132,17 @@ namespace OpenRA.Mods.Common.Pathfinder
 			new[] { new CVec(1, -1), new CVec(1, 0), new CVec(-1, 1), new CVec(0, 1), new CVec(1, 1), new CVec(0, 0) },
 		};
 
+		public List<GraphConnection> GetConnectionsWHCA(CPos position)
+		{
+			return GetConnections(position, (x, y, z, w) => locomotor.CanMoveFreelyIntoWHCA(x, y, z, w));
+		}
+
 		public List<GraphConnection> GetConnections(CPos position)
+		{
+			return GetConnections(position, (x, y, z, w) => locomotor.CanMoveFreelyInto(x, y, z, w));
+		}
+
+		private List<GraphConnection> GetConnections(CPos position, Func<Actor, CPos, BlockedByActor, Actor, bool> canMoveInto)
 		{
 			var info = position.Layer == 0 ? groundInfo : customLayerInfo[position.Layer].Info;
 			var previousPos = info[position].PreviousPos;
@@ -146,7 +157,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			for (var i = 0; i < directions.Length; i++)
 			{
 				var neighbor = position + directions[i];
-				var movementCost = GetCostToNode(neighbor, directions[i]);
+				var movementCost = GetCostToNode(neighbor, directions[i], (x, y, z, w) => canMoveInto(x, y, z, w));
 				if (movementCost != CostForInvalidCell)
 					validNeighbors.Add(new GraphConnection(neighbor, movementCost));
 			}
@@ -172,9 +183,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return validNeighbors;
 		}
 
-		int GetCostToNode(CPos destNode, CVec direction)
+		int GetCostToNode(CPos destNode, CVec direction, Func<Actor, CPos, BlockedByActor, Actor, bool> canMoveInto)
 		{
-			var movementCost = locomotor.MovementCostToEnterCell(Actor, destNode, checkConditions, IgnoreActor);
+			var movementCost = locomotor.MovementCostToEnterCell(Actor, destNode, checkConditions, IgnoreActor, (x, y, z, w) => canMoveInto(x, y, z, w));
 			if (movementCost != short.MaxValue && !(CustomBlock != null && CustomBlock(destNode)))
 				return CalculateCellCost(destNode, direction, movementCost);
 

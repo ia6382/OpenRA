@@ -145,14 +145,6 @@ namespace OpenRA.Mods.Common.Pathfinder
 			var currentMinNode = OpenQueue.Pop().Destination; // SLO: CPos.
 			var currentCell = Graph[currentMinNode]; // SLO: CellInfo.
 
-			if (targetGoalFound(currentMinNode))
-			{
-				// So we can resume RRA* next time in case OpenQueue is empty
-				if (OpenQueue.Empty)
-					OpenQueue.Add(new GraphConnection(currentMinNode, currentCell.EstimatedTotal));
-				return currentMinNode;
-			}
-
 			// Check for duplicates and mark them as invalids
 			if (currentCell.Status == CellStatus.Duplicate)
 				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid);
@@ -160,6 +152,18 @@ namespace OpenRA.Mods.Common.Pathfinder
 				return currentMinNode;
 			else
 				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
+
+			if (targetGoalFound(currentMinNode))
+			{
+				// So we can resume RRA* next time in case OpenQueue is empty
+				if (OpenQueue.Empty)
+				{
+					OpenQueue.Add(new GraphConnection(currentMinNode, currentCell.EstimatedTotal));
+					Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Open);
+				}
+
+				return currentMinNode;
+			}
 
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
 				return currentMinNode;
@@ -173,7 +177,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 				var neighborCell = Graph[neighborCPos];
 
 				// Cost is even higher; next direction:
-				if (neighborCell.Status == CellStatus.Closed || gCost >= neighborCell.CostSoFar)
+				if (neighborCell.Status == CellStatus.Closed || neighborCell.Status == CellStatus.Invalid || gCost >= neighborCell.CostSoFar)
 					continue;
 
 				// Now we may seriously consider this direction using heuristics. If the cell has
@@ -210,7 +214,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public override CPos ExpandWHCA(CPos goal)
 		{
 			// var tmp = Tick;
-			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick);
+			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick, Actor);
 			var currentMinNode = OpenQueue.Pop().Destination;
 			var currentCell = Graph[currentMinNode];
 			var currentPath = Paths[currentMinNode];
@@ -227,13 +231,16 @@ namespace OpenRA.Mods.Common.Pathfinder
 				return currentMinNode;
 
 			// Optimization: consider only neighbours already processed by RRA (if possible)
-			var neighbours = Graph.GetConnections(currentMinNode);
+			var neighbours = Graph.GetConnectionsWHCA(currentMinNode);
 			var allRRANodes = neighbours.Where(x => isInRAA(x.Destination));
 			var forwardRRANodes = allRRANodes.Where(x => x.Destination != currentMinNode && x.Destination != currentCell.PreviousPos);
 
-			if (forwardRRANodes.Any() && currentMinNode != currentCell.PreviousPos) // + if we are standing still (wait action) ignore this optimization
+			if (forwardRRANodes.Any()) // && currentMinNode != currentCell.PreviousPos) // + if we are standing still (wait action) ignore this optimization
 				neighbours = allRRANodes.ToList();
-			else { } // breakpoint stop
+
+			// TODO: Optimization: if expanding goal node check reservations to stay here without looking other neighbours
+			if (currentMinNode == goal)
+				neighbours = new List<GraphConnection> { neighbours.LastOrDefault() };
 
 			foreach (var connection in neighbours)
 			{
@@ -245,8 +252,8 @@ namespace OpenRA.Mods.Common.Pathfinder
 				if (currentMinNode != goal || neighborCPos != goal) // SLO: WHCA* edge cost for staying at goal should be 0
 					gCost += connection.Cost;
 
-				// Cost is even higher; next direction:
-				if (gCost > neighborCell.CostSoFar)
+				// Cost is even higher; next direction. Ignore for staying at the same place
+				if (gCost > neighborCell.CostSoFar && currentMinNode != neighborCPos)
 					continue;
 
 				// Now we may seriously consider this direction using heuristics. If the cell has
@@ -259,6 +266,8 @@ namespace OpenRA.Mods.Common.Pathfinder
 					hCost = heuristic(neighborCPos);
 
 				var estimatedCost = gCost + hCost;
+				if (estimatedCost < 0) // in case of int overflow
+					estimatedCost = int.MaxValue;
 
 				// Mark duplicates in priority queue
 				if (neighborCell.Status == CellStatus.Open || neighborCell.Status == CellStatus.Duplicate || neighborCell.Status == CellStatus.Invalid)

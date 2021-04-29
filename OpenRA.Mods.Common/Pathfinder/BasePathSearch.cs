@@ -55,6 +55,8 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// </summary>
 		IEnumerable<(CPos Cell, int Cost)> Considered { get; }
 
+		Actor Actor { get; }
+
 		Player Owner { get; }
 
 		int MaxCost { get; }
@@ -100,6 +102,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public abstract IEnumerable<(CPos Cell, int Cost)> Considered { get; }
 
+		public Actor Actor { get { return Graph.Actor; } }
 		public Player Owner { get { return Graph.Actor.Owner; } }
 		public int MaxCost { get; protected set; }
 		public bool Debug { get; set; }
@@ -177,7 +180,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return here =>
 			{
 				var cell = rraSearch.Graph[here];
-				return cell.Status == CellStatus.Closed;
+				return cell.Status == CellStatus.Closed || cell.Status == CellStatus.Invalid;
 			};
 		}
 

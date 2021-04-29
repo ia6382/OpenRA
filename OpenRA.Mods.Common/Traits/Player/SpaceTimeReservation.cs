@@ -14,7 +14,7 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Modulus operator - how many ticks of time we remember before we overwrite reservations.")]
 		public readonly int TimeLength = 4999;
 
-		public override object Create(ActorInitializer init) { return new SpaceTimeReservation(init.Self, this); } // SLO: se this ce potrebuje fields iz Info classa.
+		public override object Create(ActorInitializer init) { return new SpaceTimeReservation(init.Self.Owner, this); } // SLO: se this ce potrebuje fields iz Info classa.
 	}
 
 	public class SpaceTimeReservation
@@ -22,32 +22,32 @@ namespace OpenRA.Mods.Common.Traits
 		private SparseMatrix<uint> reservationTable;
 
 		public readonly SpaceTimeReservationInfo Info;
-		public readonly Actor Self;
+		public readonly Player Owner;
 
-		public SpaceTimeReservation(Actor self, SpaceTimeReservationInfo info)
+		public SpaceTimeReservation(Player owner, SpaceTimeReservationInfo info)
 		{
 			Info = info;
-			Self = self;
+			Owner = owner;
 
-			if (!Self.Owner.Spectating)
+			if (!owner.Spectating)
 				reservationTable = new SparseMatrix<uint>();
 			else
 				reservationTable = null;
 		}
 
-		public void Reserve(int x, int y, int t)
+		public void Reserve(int x, int y, int t, Actor agent)
 		{
 			var wrappedT = t % Info.TimeLength;
-			reservationTable[x, y, wrappedT] = Self.ActorID;
+			reservationTable[x, y, wrappedT] = agent.ActorID;
 		}
 
-		public void Free(int x, int y, int t)
+		public void Free(int x, int y, int t, Actor agent)
 		{
 			var wrappedT = t % Info.TimeLength;
 			reservationTable.RemoveKey(x, y, wrappedT);
 		}
 
-		public bool Check(int x, int y, int t)
+		public bool Check(int x, int y, int t, Actor agent)
 		{
 			var wrappedT = t % Info.TimeLength;
 			return reservationTable.ContainsKey(x, y, wrappedT);
