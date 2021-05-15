@@ -148,7 +148,7 @@ namespace OpenRA.Mods.Common.Activities
 			using (var fromDest = PathSearch.FromPoint(self.World, Mobile.Locomotor, self, loc, lastVisibleTargetLocation, check).Reverse())
 				return pathFinder.FindBidiPath(fromSrc, fromDest);
 			*/
-			using (var search = PathSearch.FromPoint(self.World, Mobile.Locomotor, self, loc, lastVisibleTargetLocation, check))
+			using (var search = PathSearch.FromPoint(self.World, Mobile.Locomotor, self, loc, lastVisibleTargetLocation, check, wLimit))
 			{
 				search.Graph.IgnoreActor = self;
 				return pathFinder.FindPathWHCA(search, lastVisibleTargetLocation, wLimit);

@@ -48,8 +48,6 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// </summary>
 		IGraph<CellInfo> Graph { get; }
 
-		PathDict Paths { get; }
-
 		/// <summary>
 		/// Stores the analyzed nodes by the expand function
 		/// </summary>
@@ -91,7 +89,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		bool CanExpand { get; }
 		CPos Expand();
 		CPos ExpandRRA(Func<CPos, bool> targetGoalFound);
-		CPos ExpandWHCA(CPos goal);
+		(CPos, int) ExpandWHCA(CPos goal, int wLimit);
 	}
 
 	public abstract class BasePathSearch : IPathSearch
@@ -108,7 +106,6 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public bool Debug { get; set; }
 		public int Tick { get { return Owner.World.WorldTick; } }
 		public SpaceTimeReservation SpaceTimeReservation { get; private set; }
-		public PathDict Paths { get; private set; }
 
 		protected Func<CPos, int> heuristic;
 		protected Func<CPos, bool> isGoal;
@@ -128,13 +125,12 @@ namespace OpenRA.Mods.Common.Pathfinder
 		protected BasePathSearch(IGraph<CellInfo> graph)
 		{
 			Graph = graph;
-			OpenQueue = new PriorityQueue<GraphConnection>(GraphConnection.ConnectionCostComparer);
-			StartPoints = new PriorityQueue<GraphConnection>(GraphConnection.ConnectionCostComparer);
+			OpenQueue = new PriorityQueueCustom<GraphConnection>(GraphConnection.ConnectionCostComparer);
+			StartPoints = new PriorityQueueCustom<GraphConnection>(GraphConnection.ConnectionCostComparer);
 			MaxCost = 0;
 			heuristicWeightPercentage = 100;
 
 			SpaceTimeReservation = Owner.PlayerActor.Trait<SpaceTimeReservation>();
-			Paths = new PathDict();
 
 			// Determine the minimum possible cost for moving horizontally between cells based on terrain speeds.
 			// The minimum possible cost diagonally is then Sqrt(2) times more costly.
@@ -166,7 +162,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return here =>
 			{
 				var cell = rraSearch.Graph[here];
-				if (cell.Status == CellStatus.Closed)
+				if (cell.Status == CellStatus.Closed || cell.Status == CellStatus.Invalid)
 					return cell.CostSoFar;
 				else if (PathFinder.ResumeRRA(rraSearch, here))
 					return rraSearch.Graph[here].CostSoFar;
@@ -235,6 +231,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		}
 
 		protected abstract void AddInitialCell(CPos cell);
+		protected abstract void AddInitialCell3d(CPos cell);
 
 		public bool IsTarget(CPos location)
 		{
@@ -244,7 +241,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public bool CanExpand { get { return !OpenQueue.Empty; } }
 		public abstract CPos Expand();
 		public abstract CPos ExpandRRA(Func<CPos, bool> targetGoalFound);
-		public abstract CPos ExpandWHCA(CPos goal);
+		public abstract (CPos, int) ExpandWHCA(CPos goal, int wLimit);
 		protected virtual void Dispose(bool disposing)
 		{
 			if (disposing)

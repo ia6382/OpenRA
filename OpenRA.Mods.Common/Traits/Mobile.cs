@@ -64,7 +64,7 @@ namespace OpenRA.Mods.Common.Traits
 		public readonly BooleanExpression ImmovableCondition = null;
 
 		[Desc("Window lenght in which agent searches cooperativly.")]
-		public readonly int W = 8;
+		public readonly int W = 9;
 
 		IEnumerable<ActorInit> IActorPreviewInitInfo.ActorPreviewInits(ActorInfo ai, ActorPreviewType type)
 		{

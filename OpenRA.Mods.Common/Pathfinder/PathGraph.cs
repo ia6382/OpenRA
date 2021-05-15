@@ -21,19 +21,21 @@ namespace OpenRA.Mods.Common.Pathfinder
 	/// <summary>
 	/// Represents a graph with nodes and edges
 	/// </summary>
-	/// <typeparam name="T">The type of node used in the graph</typeparam>
-	public interface IGraph<T> : IDisposable
+	/// <typeparam name="T1">The type of node used in the graph (value)</typeparam>
+	public interface IGraph<T1> : IDisposable
 	{
 		/// <summary>
 		/// Gets all the Connections for a given node in the graph
 		/// </summary>
-		List<GraphConnection> GetConnectionsWHCA(CPos position);
 		List<GraphConnection> GetConnections(CPos position);
+		List<GraphConnection> GetConnectionsWHCA(CPos position);
 
 		/// <summary>
 		/// Retrieves an object given a node in the graph
 		/// </summary>
-		T this[CPos pos] { get; set; }
+		T1 this[CPos pos] { get; set; }
+
+		T1 this[(CPos, int) pos] { get; set; }
 
 		Func<CPos, bool> CustomBlock { get; set; }
 
@@ -66,33 +68,42 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public readonly CPos Destination;
 		public readonly int Cost;
+		public readonly int Timestep;
 
 		public GraphConnection(CPos destination, int cost)
 		{
 			Destination = destination;
 			Cost = cost;
+			Timestep = 0;
+		}
+
+		public GraphConnection(CPos destination, int cost, int timestep)
+		{
+			Destination = destination;
+			Cost = cost;
+			Timestep = timestep;
 		}
 	}
 
-	sealed class PathGraph : IGraph<CellInfo>
+	class PathGraph : IGraph<CellInfo>
 	{
 		public const int CostForInvalidCell = int.MaxValue;
 
-		public Actor Actor { get; private set; }
-		public World World { get; private set; }
+		public Actor Actor { get; set; }
+		public World World { get; set; }
 		public Func<CPos, bool> CustomBlock { get; set; }
 		public Func<CPos, int> CustomCost { get; set; }
 		public int LaneBias { get; set; }
 		public bool InReverse { get; set; }
 		public Actor IgnoreActor { get; set; }
 
-		readonly BlockedByActor checkConditions;
-		readonly Locomotor locomotor;
-		readonly CellInfoLayerPool.PooledCellInfoLayer pooledLayer;
-		readonly bool checkTerrainHeight;
-		CellLayer<CellInfo> groundInfo;
+		protected BlockedByActor checkConditions;
+		protected Locomotor locomotor;
+		protected CellInfoLayerPool.PooledCellInfoLayer pooledLayer;
+		protected bool checkTerrainHeight;
+		protected CellLayer<CellInfo> groundInfo;
 
-		readonly Dictionary<byte, (ICustomMovementLayer Layer, CellLayer<CellInfo> Info)> customLayerInfo =
+		protected Dictionary<byte, (ICustomMovementLayer Layer, CellLayer<CellInfo> Info)> customLayerInfo =
 			new Dictionary<byte, (ICustomMovementLayer, CellLayer<CellInfo>)>();
 
 		public PathGraph(CellInfoLayerPool layerPool, Locomotor locomotor, Actor actor, World world, BlockedByActor check)
@@ -142,7 +153,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return GetConnections(position, (x, y, z, w) => locomotor.CanMoveFreelyInto(x, y, z, w));
 		}
 
-		private List<GraphConnection> GetConnections(CPos position, Func<Actor, CPos, BlockedByActor, Actor, bool> canMoveInto)
+		public List<GraphConnection> GetConnections(CPos position, Func<Actor, CPos, BlockedByActor, Actor, bool> canMoveInto)
 		{
 			var info = position.Layer == 0 ? groundInfo : customLayerInfo[position.Layer].Info;
 			var previousPos = info[position].PreviousPos;
@@ -238,8 +249,77 @@ namespace OpenRA.Mods.Common.Pathfinder
 			set { (pos.Layer == 0 ? groundInfo : customLayerInfo[pos.Layer].Info)[pos] = value; }
 		}
 
+		public virtual CellInfo this[(CPos, int) pos]
+		{
+			get { throw new NotImplementedException(); }
+			set { throw new NotImplementedException(); }
+		}
+
 		public void Dispose()
 		{
+			groundInfo = null;
+			customLayerInfo.Clear();
+			pooledLayer.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Represents a graph with nodes and edges in a 3D space-time (x, y, t)
+	/// </summary>
+	class PathGraph3D : PathGraph, IGraph<CellInfo>
+	{
+		new CellLayer<CellInfo>[] groundInfo;
+		readonly new Dictionary<byte, (ICustomMovementLayer Layer, CellLayer<CellInfo>[] Info)> customLayerInfo =
+			new Dictionary<byte, (ICustomMovementLayer, CellLayer<CellInfo>[])>();
+
+		public PathGraph3D(CellInfoLayerPool layerPool, Locomotor locomotor, Actor actor, World world, BlockedByActor check, int wLimit)
+			: base(layerPool, locomotor, actor, world, check)
+		{
+			World = world;
+			Actor = actor;
+			LaneBias = 1;
+			checkConditions = check;
+			checkTerrainHeight = world.Map.Grid.MaximumTerrainHeight > 0;
+			groundInfo = new CellLayer<CellInfo>[wLimit];
+
+			pooledLayer = layerPool.Get();
+			var layer = pooledLayer.GetLayer();
+			for (int i = 0; i < wLimit; i++)
+			{
+				var newLayer = new CellLayer<CellInfo>(layer.GridType, layer.Size);
+				newLayer.CopyValuesFrom(layer);
+				groundInfo[i] = newLayer;
+			}
+
+			this.locomotor = locomotor;
+			var locomotorInfo = locomotor.Info;
+			var layers = world.GetCustomMovementLayers().Values
+				.Where(cml => cml.EnabledForActor(actor.Info, locomotorInfo));
+
+			foreach (var cml in layers)
+			{
+				var groundInfoTmp = new CellLayer<CellInfo>[wLimit];
+				var layerTmp = pooledLayer.GetLayer();
+				for (int i = 0; i < wLimit; i++)
+				{
+					var newLayer = new CellLayer<CellInfo>(layerTmp.GridType, layerTmp.Size);
+					newLayer.CopyValuesFrom(layerTmp);
+					groundInfoTmp[i] = newLayer;
+				}
+
+				customLayerInfo[cml.Index] = (cml, groundInfoTmp);
+			}
+		}
+
+		public new CellInfo this[(CPos, int) pos]
+		{
+			get { return (pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[pos.Item2][pos.Item1]; }
+			set { (pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[pos.Item2][pos.Item1] = value; }
+		}
+
+		public new void Dispose()
+		{
+			base.Dispose();
 			groundInfo = null;
 			customLayerInfo.Clear();
 			pooledLayer.Dispose();

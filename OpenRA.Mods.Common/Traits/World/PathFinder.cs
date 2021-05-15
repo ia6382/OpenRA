@@ -39,7 +39,7 @@ namespace OpenRA.Mods.Common.Traits
 		/// <returns>A W steps long path from start to target</returns>
 		List<CPos> FindUnitPathWHCA(CPos source, CPos target, Actor self, Actor ignoreActor, BlockedByActor check, int wSteps);
 
-		List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check);
+		List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check, int wLimit);
 
 		/// <summary>
 		/// Calculates a path given a search specification
@@ -104,7 +104,7 @@ namespace OpenRA.Mods.Common.Traits
 			 * using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor).Reverse())
 			 *	pb = FindBidiPath(fromSrc, fromDest);
 			*/
-			using (var search = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor))
+			using (var search = PathSearch.FromPoints(world, locomotor, self, new[] { source }, target, check).WithIgnoredActor(ignoreActor))
 					pb = FindPath(search);
 
 			return pb;
@@ -135,10 +135,9 @@ namespace OpenRA.Mods.Common.Traits
 			if (distance.LengthSquared != 0 && source.Layer == target.Layer && distance.LengthSquared < 3 && canMoveFreely)
 				return Enumerable.Repeat(target, wSteps).ToList();
 
-			// return new List<CPos> { target } * wSteps;
 			List<CPos> pb;
 
-			using (var search = PathSearch.FromPoint(world, locomotor, self, source, target, check).WithIgnoredActor(ignoreActor))
+			using (var search = PathSearch.FromPoint(world, locomotor, self, source, target, check, wSteps).WithIgnoredActor(ignoreActor))
 			{
 				search.Graph.IgnoreActor = self;
 				pb = FindPathWHCA(search, target, wSteps);
@@ -147,7 +146,7 @@ namespace OpenRA.Mods.Common.Traits
 			return pb;
 		}
 
-		public List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check)
+		public List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check, int wLimit)
 		{
 			if (!cached)
 			{
@@ -182,8 +181,8 @@ namespace OpenRA.Mods.Common.Traits
 			/* using (var fromSrc = PathSearch.FromPoints(world, locomotor, self, tilesInRange, source, check))
 			 * using (var fromDest = PathSearch.FromPoint(world, locomotor, self, source, targetCell, check).Reverse())
 			*/
-			using (var search = PathSearch.FromPoint(world, locomotor, self, source, targetCell, check))
-				return FindPath(search);
+			using (var search = PathSearch.FromPoint(world, locomotor, self, source, targetCell, check, wLimit))
+				return FindPathWHCA(search, targetCell, wLimit);
 		}
 
 		public List<CPos> FindPath(IPathSearch search)
@@ -215,12 +214,10 @@ namespace OpenRA.Mods.Common.Traits
 
 			while (search.CanExpand)
 			{
-				var p = search.ExpandWHCA(goal);
-
-				if (search.Paths[p].Count >= wLimit)
+				var (p, t) = search.ExpandWHCA(goal, wLimit);
+				if (t == wLimit - 1)
 				{
-					search.Paths[p].Reverse();
-					path = search.Paths[p];
+					path = MakePathWHCA(search.Graph, p, t);
 					break;
 				}
 			}
@@ -301,6 +298,22 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			ret.Add(currentNode);
+			return ret;
+		}
+
+		static List<CPos> MakePathWHCA(IGraph<CellInfo> cellInfo, CPos destination, int timestep)
+		{
+			var ret = new List<CPos>();
+			var currentNode = destination;
+			var currentTimestep = timestep;
+
+			while (currentTimestep > 0)
+			{
+				ret.Add(currentNode);
+				currentNode = cellInfo[(currentNode, currentTimestep)].PreviousPos;
+				currentTimestep -= 1;
+			}
+
 			return ret;
 		}
 

@@ -78,7 +78,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			}
 		}
 
-		public List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check)
+		public List<CPos> FindUnitPathToRange(CPos source, SubCell srcSub, WPos target, WDist range, Actor self, BlockedByActor check, int wLimit)
 		{
 			using (new PerfSample("Pathfinder"))
 			{
@@ -91,7 +91,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 						return cachedPath;
 				}
 
-				var pb = pathFinder.FindUnitPathToRange(source, srcSub, target, range, self, check);
+				var pb = pathFinder.FindUnitPathToRange(source, srcSub, target, range, self, check, wLimit);
 
 				if (check == BlockedByActor.None)
 					cacheStorage.Store(key, pb);

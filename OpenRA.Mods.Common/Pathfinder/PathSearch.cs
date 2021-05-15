@@ -48,6 +48,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public static IPathSearch Search(World world, Locomotor locomotor, Actor self, BlockedByActor check, Func<CPos, bool> goalCondition)
 		{
+			// used by normal uncooperative search
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
 			var search = new PathSearch(graph);
 			search.isGoal = goalCondition;
@@ -55,18 +56,26 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return search;
 		}
 
-		public static IPathSearch FromPoint(World world, Locomotor locomotor, Actor self, CPos @from, CPos target, BlockedByActor check)
+		public static IPathSearch FromPoint(World world, Locomotor locomotor, Actor self, CPos @from, CPos target, BlockedByActor check, int wLimit)
 		{
-			return FromPoints(world, locomotor, self, new[] { from }, target, check);
+			// used by cooperative WHCA search
+			var graph = new PathGraph3D(LayerPoolForWorld(world), locomotor, self, world, check, wLimit);
+			return FromPoints(graph, world, locomotor, self, new[] { from }, target, check, true);
 		}
 
 		public static IPathSearch FromPoints(World world, Locomotor locomotor, Actor self, IEnumerable<CPos> froms, CPos target, BlockedByActor check)
 		{
+			// used by normal uncooperative search
 			var graph = new PathGraph(LayerPoolForWorld(world), locomotor, self, world, check);
+			return FromPoints(graph, world, locomotor, self, froms, target, check, false);
+		}
+
+		public static IPathSearch FromPoints(IGraph<CellInfo> graph, World world, Locomotor locomotor, Actor self, IEnumerable<CPos> froms, CPos target, BlockedByActor check, bool coop)
+		{
 			var search = new PathSearch(graph);
 
-			// SLO: quick fix for actors that pathfind before spawning in world or have multiple froms - harvesters
-			if (froms.Count() == 1)
+			// SLO: quick fix for actors that pathfind before spawning in world or have multiple froms - harvesters // (froms.Count() == 1)
+			if (coop)
 			{
 				var rraSearch = self.Trait<Mobile>().RRAsearch;
 				search.heuristic = search.RRA(rraSearch);
@@ -92,7 +101,10 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 			foreach (var sl in froms)
 				if (world.Map.Contains(sl))
-					search.AddInitialCell(sl);
+					if (coop)
+						search.AddInitialCell3d(sl);
+					else
+						search.AddInitialCell(sl);
 
 			return search;
 		}
@@ -122,6 +134,16 @@ namespace OpenRA.Mods.Common.Pathfinder
 		{
 			var cost = heuristic(location);
 			Graph[location] = new CellInfo(0, cost, location, CellStatus.Open);
+			var connection = new GraphConnection(location, cost);
+			OpenQueue.Add(connection);
+			StartPoints.Add(connection);
+			considered.AddLast((location, 0));
+		}
+
+		protected override void AddInitialCell3d(CPos location)
+		{
+			var cost = heuristic(location);
+			Graph[(location, 0)] = new CellInfo(0, cost, location, CellStatus.Open);
 			var connection = new GraphConnection(location, cost);
 			OpenQueue.Add(connection);
 			StartPoints.Add(connection);
@@ -211,41 +233,46 @@ namespace OpenRA.Mods.Common.Pathfinder
 			return currentMinNode;
 		}
 
-		public override CPos ExpandWHCA(CPos goal)
+		public override (CPos, int) ExpandWHCA(CPos goal, int wLimit)
 		{
 			// var tmp = Tick;
 			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick, Actor);
-			var currentMinNode = OpenQueue.Pop().Destination;
-			var currentCell = Graph[currentMinNode];
-			var currentPath = Paths[currentMinNode];
+			var currentConnection = OpenQueue.Pop();
+			var currentMinNode = currentConnection.Destination;
+			var currentTimestep = currentConnection.Timestep;
+			var currentCell = Graph[(currentMinNode, currentTimestep)];
 
 			// Check for duplicates and mark them as invalids
 			if (currentCell.Status == CellStatus.Duplicate)
-				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid);
+				Graph[(currentMinNode, currentTimestep)] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid);
 			else if (currentCell.Status == CellStatus.Invalid)
-				return currentMinNode;
+				return (currentMinNode, currentTimestep);
 			else
-				Graph[currentMinNode] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
+				Graph[(currentMinNode, currentTimestep)] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
 
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
-				return currentMinNode;
+				return (currentMinNode, currentTimestep);
+
+			if (currentTimestep == wLimit - 1)
+				return (currentMinNode, currentTimestep);
 
 			// Optimization: consider only neighbours already processed by RRA (if possible)
 			var neighbours = Graph.GetConnectionsWHCA(currentMinNode);
 			var allRRANodes = neighbours.Where(x => isInRAA(x.Destination));
 			var forwardRRANodes = allRRANodes.Where(x => x.Destination != currentMinNode && x.Destination != currentCell.PreviousPos);
 
-			if (forwardRRANodes.Any()) // && currentMinNode != currentCell.PreviousPos) // + if we are standing still (wait action) ignore this optimization
+			if (forwardRRANodes.Any() && currentMinNode != currentCell.PreviousPos) // if we are standing still (wait action) ignore this optimization
 				neighbours = allRRANodes.ToList();
 
-			// TODO: Optimization: if expanding goal node check reservations to stay here without looking other neighbours
+			// TODO: Optimization: if expanding goal node (TODO: check time reservations to) stay here without looking other neighbours
 			if (currentMinNode == goal)
 				neighbours = new List<GraphConnection> { neighbours.LastOrDefault() };
 
 			foreach (var connection in neighbours)
 			{
 				var neighborCPos = connection.Destination;
-				var neighborCell = Graph[neighborCPos];
+				var neighbourTimestep = currentTimestep + 1;
+				var neighborCell = Graph[(neighborCPos, neighbourTimestep)];
 
 				// Calculate the cost up to that point
 				var gCost = currentCell.CostSoFar;
@@ -253,7 +280,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 					gCost += connection.Cost;
 
 				// Cost is even higher; next direction. Ignore for staying at the same place
-				if (gCost > neighborCell.CostSoFar && currentMinNode != neighborCPos)
+				if (gCost >= neighborCell.CostSoFar)
 					continue;
 
 				// Now we may seriously consider this direction using heuristics. If the cell has
@@ -271,14 +298,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 				// Mark duplicates in priority queue
 				if (neighborCell.Status == CellStatus.Open || neighborCell.Status == CellStatus.Duplicate || neighborCell.Status == CellStatus.Invalid)
-					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Duplicate);
+					Graph[(neighborCPos, neighbourTimestep)] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Duplicate);
 				else
-					Graph[neighborCPos] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
+					Graph[(neighborCPos, neighbourTimestep)] = new CellInfo(gCost, estimatedCost, currentMinNode, CellStatus.Open);
 
-				OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost));
-				var neighbourPath = currentPath.ToList(); // copy list
-				neighbourPath.Add(neighborCPos);
-				Paths[neighborCPos] = neighbourPath;
+				OpenQueue.Add(new GraphConnection(neighborCPos, estimatedCost, neighbourTimestep));
 
 				if (Debug)
 				{
@@ -289,7 +313,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 				}
 			}
 
-			return currentMinNode;
+			return (currentMinNode, currentTimestep);
 		}
 	}
 }

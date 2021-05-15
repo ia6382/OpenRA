@@ -80,7 +80,7 @@ namespace OpenRA.Mods.Common.Activities
 				List<CPos> path;
 
 				using (var search =
-					PathSearch.FromPoint(self.World, mobile.Locomotor, self, mobile.ToCell, destination, check)
+					PathSearch.FromPoint(self.World, mobile.Locomotor, self, mobile.ToCell, destination, check, wLimit)
 					.WithoutLaneBias())
 				{
 					search.Graph.IgnoreActor = self;
@@ -126,7 +126,7 @@ namespace OpenRA.Mods.Common.Activities
 			mobile = (Mobile)self.OccupiesSpace;
 
 			getPath = (wLimit, check) => mobile.Pathfinder.FindUnitPathToRange(
-				mobile.FromCell, subCell, self.World.Map.CenterOfSubCell(destination, subCell), nearEnough, self, check);
+				mobile.FromCell, subCell, self.World.Map.CenterOfSubCell(destination, subCell), nearEnough, self, check, wLimit);
 
 			this.destination = destination;
 			this.nearEnough = nearEnough;
@@ -144,7 +144,7 @@ namespace OpenRA.Mods.Common.Activities
 					return NoPath;
 
 				return mobile.Pathfinder.FindUnitPathToRange(
-					mobile.ToCell, mobile.ToSubCell, target.CenterPosition, range, self, check);
+					mobile.ToCell, mobile.ToSubCell, target.CenterPosition, range, self, check, wLimit);
 			};
 
 			destination = null;

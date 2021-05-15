@@ -45,6 +45,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public readonly CPos PreviousPos;
 
 		/// <summary>
+		/// The time dimension of node in a path thorugh 3D space-time
+		/// </summary>
+		public readonly int PrevTimestep;
+
+		/// <summary>
 		/// The status of this node
 		/// </summary>
 		public readonly CellStatus Status;
@@ -55,6 +60,16 @@ namespace OpenRA.Mods.Common.Pathfinder
 			PreviousPos = previousPos;
 			Status = status;
 			EstimatedTotal = estimatedTotal;
+			PrevTimestep = 0;
+		}
+
+		public CellInfo(int costSoFar, int estimatedTotal, CPos previousPos, CellStatus status, int prevTimestep)
+		{
+			CostSoFar = costSoFar;
+			PreviousPos = previousPos;
+			Status = status;
+			EstimatedTotal = estimatedTotal;
+			PrevTimestep = prevTimestep;
 		}
 	}
 }
