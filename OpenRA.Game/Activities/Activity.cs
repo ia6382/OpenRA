@@ -79,6 +79,7 @@ namespace OpenRA.Activities
 			return first;
 		}
 
+		public bool Delay { get; set; }
 		public bool IsInterruptible { get; protected set; }
 		public bool ChildHasPriority { get; protected set; }
 		public bool IsCanceling { get { return State == ActivityState.Canceling; } }
@@ -90,6 +91,7 @@ namespace OpenRA.Activities
 		{
 			IsInterruptible = true;
 			ChildHasPriority = true;
+			Delay = false;
 		}
 
 		public Activity TickOuter(Actor self)
@@ -120,7 +122,7 @@ namespace OpenRA.Activities
 				lastRun = Tick(self);
 
 			// Avoid a single tick delay if the childactivity was just queued.
-			if (ChildActivity != null && ChildActivity.State == ActivityState.Queued)
+			if (ChildActivity != null && ChildActivity.State == ActivityState.Queued && !ChildActivity.Delay)
 			{
 				if (ChildHasPriority)
 					lastRun = TickChild(self) && finishing;

@@ -64,7 +64,10 @@ namespace OpenRA.Mods.Common.Traits
 		public readonly BooleanExpression ImmovableCondition = null;
 
 		[Desc("Window lenght in which agent searches cooperativly.")]
-		public readonly int W = 9;
+		public readonly int W = 8;
+
+		[Desc("Number of ticks for one slow step. Used for rewindowing search when WorldTick % (W*ResetSpeed) == 0.")]
+		public readonly int ResetSpeed = 25;
 
 		IEnumerable<ActorInit> IActorPreviewInitInfo.ActorPreviewInits(ActorInfo ai, ActorPreviewType type)
 		{
@@ -209,6 +212,8 @@ namespace OpenRA.Mods.Common.Traits
 		}
 
 		public int W { get { return Info.W; } }
+
+		public int ResetSpeed { get { return Info.ResetSpeed; } }
 
 		public WRot Orientation { get { return orientation; } }
 

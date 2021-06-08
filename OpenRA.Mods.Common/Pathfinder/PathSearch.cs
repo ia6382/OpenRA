@@ -59,7 +59,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		public static IPathSearch FromPoint(World world, Locomotor locomotor, Actor self, CPos @from, CPos target, BlockedByActor check, int wLimit)
 		{
 			// used by cooperative WHCA search
-			var graph = new PathGraph3D(LayerPoolForWorld(world), locomotor, self, world, check, wLimit);
+			var graph = new PathGraph3D(LayerPoolForWorld(world), locomotor, self, world, check);
 			return FromPoints(graph, world, locomotor, self, new[] { from }, target, check, true);
 		}
 
@@ -235,6 +235,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 		public override (CPos, int) ExpandWHCA(CPos goal, int wLimit)
 		{
+			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
+			var mobile = ((Mobile)Actor.OccupiesSpace);
+
 			// var tmp = Tick;
 			// var tmp2 = SpaceTimeReservation.Check(1, 1, Tick, Actor);
 			var currentConnection = OpenQueue.Pop();
@@ -253,7 +256,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
 				return (currentMinNode, currentTimestep);
 
-			if (currentTimestep == wLimit - 1)
+			if (currentTimestep == wLimit)
 				return (currentMinNode, currentTimestep);
 
 			// Optimization: consider only neighbours already processed by RRA (if possible)

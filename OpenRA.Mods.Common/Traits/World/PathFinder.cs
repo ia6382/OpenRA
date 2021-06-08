@@ -123,15 +123,16 @@ namespace OpenRA.Mods.Common.Traits
 
 			// If a water-land transition is required, bail early
 			if (domainIndex != null && !domainIndex.IsPassable(source, target, locomotor))
-				return EmptyPath;
+				return Enumerable.Repeat(source, wSteps).ToList();
 
 			var distance = source - target;
 			var canMoveFreely = locomotor.CanMoveFreelyInto(self, target, check, null);
 
 			// If target is neighbouring cell. Do not check if target is waiting in current cell (= distance is 0)
+			/*
 			if (distance.LengthSquared != 0 && distance.LengthSquared < 3 && !canMoveFreely)
-				return new List<CPos> { };
-
+				return Enumerable.Repeat(source, wSteps).ToList(); // return new List<CPos> { };
+			*/
 			if (distance.LengthSquared != 0 && source.Layer == target.Layer && distance.LengthSquared < 3 && canMoveFreely)
 				return Enumerable.Repeat(target, wSteps).ToList();
 
@@ -215,7 +216,7 @@ namespace OpenRA.Mods.Common.Traits
 			while (search.CanExpand)
 			{
 				var (p, t) = search.ExpandWHCA(goal, wLimit);
-				if (t == wLimit - 1)
+				if (t == wLimit)
 				{
 					path = MakePathWHCA(search.Graph, p, t);
 					break;

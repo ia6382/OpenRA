@@ -268,11 +268,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 	/// </summary>
 	class PathGraph3D : PathGraph, IGraph<CellInfo>
 	{
-		new CellLayer<CellInfo>[] groundInfo;
-		readonly new Dictionary<byte, (ICustomMovementLayer Layer, CellLayer<CellInfo>[] Info)> customLayerInfo =
-			new Dictionary<byte, (ICustomMovementLayer, CellLayer<CellInfo>[])>();
+		new Dictionary<Tuple<int, int, int>, CellInfo> groundInfo = new Dictionary<Tuple<int, int, int>, CellInfo>();
+		readonly new Dictionary<byte, (ICustomMovementLayer Layer, Dictionary<Tuple<int, int, int>, CellInfo> Info)> customLayerInfo =
+			new Dictionary<byte, (ICustomMovementLayer, Dictionary<Tuple<int, int, int>, CellInfo>)>();
 
-		public PathGraph3D(CellInfoLayerPool layerPool, Locomotor locomotor, Actor actor, World world, BlockedByActor check, int wLimit)
+		public PathGraph3D(CellInfoLayerPool layerPool, Locomotor locomotor, Actor actor, World world, BlockedByActor check)
 			: base(layerPool, locomotor, actor, world, check)
 		{
 			World = world;
@@ -280,49 +280,44 @@ namespace OpenRA.Mods.Common.Pathfinder
 			LaneBias = 1;
 			checkConditions = check;
 			checkTerrainHeight = world.Map.Grid.MaximumTerrainHeight > 0;
-			groundInfo = new CellLayer<CellInfo>[wLimit];
 
-			pooledLayer = layerPool.Get();
-			var layer = pooledLayer.GetLayer();
-			for (int i = 0; i < wLimit; i++)
-			{
-				var newLayer = new CellLayer<CellInfo>(layer.GridType, layer.Size);
-				newLayer.CopyValuesFrom(layer);
-				groundInfo[i] = newLayer;
-			}
-
-			this.locomotor = locomotor;
 			var locomotorInfo = locomotor.Info;
 			var layers = world.GetCustomMovementLayers().Values
 				.Where(cml => cml.EnabledForActor(actor.Info, locomotorInfo));
 
 			foreach (var cml in layers)
 			{
-				var groundInfoTmp = new CellLayer<CellInfo>[wLimit];
-				var layerTmp = pooledLayer.GetLayer();
-				for (int i = 0; i < wLimit; i++)
-				{
-					var newLayer = new CellLayer<CellInfo>(layerTmp.GridType, layerTmp.Size);
-					newLayer.CopyValuesFrom(layerTmp);
-					groundInfoTmp[i] = newLayer;
-				}
-
-				customLayerInfo[cml.Index] = (cml, groundInfoTmp);
+				customLayerInfo[cml.Index] = (cml, new Dictionary<Tuple<int, int, int>, CellInfo>());
 			}
 		}
 
 		public new CellInfo this[(CPos, int) pos]
 		{
-			get { return (pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[pos.Item2][pos.Item1]; }
-			set { (pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[pos.Item2][pos.Item1] = value; }
+			get
+			{
+				var key = new Tuple<int, int, int>(pos.Item1.X, pos.Item1.Y, pos.Item2);
+				if (groundInfo.ContainsKey(key))
+				{
+					return (pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[key];
+				}
+				else
+				{
+					groundInfo[key] = new CellInfo(int.MaxValue, int.MaxValue, pos.Item1, CellStatus.Unvisited);
+					return (pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[key];
+				}
+			}
+			set
+			{
+				var key = new Tuple<int, int, int>(pos.Item1.X, pos.Item1.Y, pos.Item2);
+				(pos.Item1.Layer == 0 ? groundInfo : customLayerInfo[pos.Item1.Layer].Info)[key] = value;
+			}
 		}
 
 		public new void Dispose()
 		{
 			base.Dispose();
-			groundInfo = null;
+			groundInfo.Clear();
 			customLayerInfo.Clear();
-			pooledLayer.Dispose();
 		}
 	}
 }

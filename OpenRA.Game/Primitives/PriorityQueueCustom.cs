@@ -132,7 +132,8 @@ namespace OpenRA.Primitives
 			T x = heap[Count];        // lift item x out from the last position
 			int index = SiftDown(0);    // sift the gap at the root down to the bottom
 			SiftUp(index, ref x, 0);    // sift the gap up, and insert x in its rightful position
-			heap.RemoveAt(heap.Count - 1);
+			heap[Count] = default(T);	// don't leak x
+			heap.RemoveAt(Count);
 
 			return root;
 		}

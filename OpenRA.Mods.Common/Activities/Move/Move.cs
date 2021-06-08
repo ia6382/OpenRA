@@ -56,6 +56,12 @@ namespace OpenRA.Mods.Common.Activities
 		// For counting moves until mobile.W/2
 		int wCounter;
 
+		// For preventing cycling Turn activity on reWindowing (= reset) tick
+		bool turnQueued;
+
+		// For preventing cycling Wait activity on reWindowing (= reset) tick
+		bool waitQueued = false;
+
 		// For dealing with blockers
 		// bool hasWaited;
 		// int waitTicksRemaining;
@@ -72,10 +78,12 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
+			turnQueued = false;
+
 			getPath = (wLimit, check) =>
 			{
 				if (!this.destination.HasValue)
-					return NoPath;
+					return Enumerable.Repeat(mobile.FromCell, wLimit).ToList();
 
 				List<CPos> path;
 
@@ -105,10 +113,12 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
+			turnQueued = false;
+
 			getPath = (wLimit, check) =>
 			{
 				if (!this.destination.HasValue)
-					return NoPath;
+					return Enumerable.Repeat(mobile.FromCell, wLimit).ToList();
 				return mobile.Pathfinder.FindUnitPathWHCA(mobile.ToCell, this.destination.Value, self, this.ignoreActor, check, wLimit);
 			};
 
@@ -125,6 +135,8 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
+			turnQueued = false;
+
 			getPath = (wLimit, check) => mobile.Pathfinder.FindUnitPathToRange(
 				mobile.FromCell, subCell, self.World.Map.CenterOfSubCell(destination, subCell), nearEnough, self, check, wLimit);
 
@@ -138,10 +150,12 @@ namespace OpenRA.Mods.Common.Activities
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
 
+			turnQueued = false;
+
 			getPath = (wLimit, check) =>
 			{
 				if (!target.IsValidFor(self))
-					return NoPath;
+					return Enumerable.Repeat(mobile.FromCell, wLimit).ToList();
 
 				return mobile.Pathfinder.FindUnitPathToRange(
 					mobile.ToCell, mobile.ToSubCell, target.CenterPosition, range, self, check, wLimit);
@@ -158,6 +172,8 @@ namespace OpenRA.Mods.Common.Activities
 
 			// PERF: Because we can be sure that OccupiesSpace is Mobile here, we can save some performance by avoiding querying for the trait.
 			mobile = (Mobile)self.OccupiesSpace;
+
+			turnQueued = false;
 
 			this.getPath = getPath;
 			ignoreActor = self;
@@ -226,7 +242,10 @@ namespace OpenRA.Mods.Common.Activities
 
 		public override bool Tick(Actor self)
 		{
-			if (wCounter == -1 || wCounter >= mobile.W / 2)
+			// force reWindow for better scynchronization
+			var reWindow = self.World.WorldTick % (mobile.W * mobile.ResetSpeed) == 0;
+
+			if (wCounter == -1 || wCounter >= mobile.W / 2 || reWindow)
 				InitiliseWindowedSearch(self);
 
 			mobile.TurnToMove = false;
@@ -242,11 +261,11 @@ namespace OpenRA.Mods.Common.Activities
 
 			if (path.Count == 0)
 			{
-				// SLO: do tega ne bi smelo nikoli priti naceloma
-				destination = mobile.ToCell;
+				// Agent should never stop moving
+				throw new Exception("Path is empty.");
 
-				// return false;
-				return true;
+				// destination = mobile.ToCell;
+				// return true;
 			}
 
 			// destination = path[0];
@@ -254,15 +273,48 @@ namespace OpenRA.Mods.Common.Activities
 			if (nextCell == null)
 				return false;
 
-			// We need to turn to face the target
+			// We need to turn to face the target.
 			var firstFacing = self.World.Map.FacingBetween(mobile.FromCell, nextCell.Value.Cell, mobile.Facing);
 			if (firstFacing != mobile.Facing)
 			{
 				path.Add(nextCell.Value.Cell);
 				QueueChild(new Turn(self, firstFacing));
 				mobile.TurnToMove = true;
+				if (turnQueued) // avoid cycling Turn and Move actions due to no single tick delay in Activity.TickOuter()
+					ChildActivity.Delay = true;
+				turnQueued = true;
 				return false;
 			}
+
+			turnQueued = false;
+
+			// Queue wait action if we need to stand stil. za 1024 wpos tickov
+			if (mobile.FromCell == nextCell.Value.Cell)
+			{
+				var waitTicks = 1024 / mobile.MovementSpeedForCell(self, mobile.FromCell);
+				Func<bool> f = () =>
+				{
+					waitTicks -= 1;
+					if (waitTicks <= 0)
+						return true;
+
+					// force reWindowing for move
+					if (mobile != null && self.World.WorldTick % (mobile.W * mobile.ResetSpeed) == 0)
+						return true;
+
+					return false;
+				};
+				QueueChild(new WaitFor(f));
+
+				if (waitQueued)
+					ChildActivity.Delay = true;
+				waitQueued = true;
+
+				wCounter += 1;
+				return false;
+			}
+
+			waitQueued = false;
 
 			// Queue MoveFirstHalf
 			mobile.SetLocation(mobile.FromCell, mobile.FromSubCell, nextCell.Value.Cell, nextCell.Value.SubCell);
@@ -546,6 +598,11 @@ namespace OpenRA.Mods.Common.Activities
 					moveFraction = MoveFractionTotal;
 
 				UpdateCenterLocation(self, Move.mobile);
+
+				// force reWindow for better scynchronization
+				var reWindow = self.World.WorldTick % (Move.mobile.W * Move.mobile.ResetSpeed) == 0;
+				if (reWindow)
+					Move.InitiliseWindowedSearch(self);
 
 				if (ret == this)
 					return false;

@@ -30,6 +30,10 @@ namespace OpenRA.Mods.Common.Activities
 
 		public override bool Tick(Actor self)
 		{
+			// force reWindowing for move
+			if (mobile != null && self.World.WorldTick % (mobile.W * mobile.ResetSpeed) == 0)
+				return true;
+
 			if (IsCanceling)
 				return true;
 
