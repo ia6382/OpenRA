@@ -196,19 +196,19 @@ namespace OpenRA.Mods.Common.Activities
 		{
 			// var tmp = world.WorldTick;
 			// var tmp2 = spaceTimeReservation.Check(1, 1, tmp);
+			/*
 			Stopwatch stopWatch = new Stopwatch(); // SLO
 			stopWatch.Start();
-
+			*/
 			var path = getPath(mobile.W - wCounter, check); // .TakeWhile(a => a != mobile.ToCell).ToList();
-
+			/*
 			stopWatch.Stop();
-
 			// Get the elapsed time as a TimeSpan value.
 			long ms = stopWatch.ElapsedMilliseconds;
 
 			// Format and display the TimeSpan value.
 			Console.WriteLine("FindUnitPath " + ms.ToString());
-
+			*/
 			mobile.PathHash = HashList(path);
 			return path;
 		}
@@ -687,7 +687,11 @@ namespace OpenRA.Mods.Common.Activities
 				var nextCell = parent.PopPath(self);
 				if (nextCell != null)
 				{
-					if (!mobile.IsTraitPaused && !mobile.IsTraitDisabled && IsTurn(mobile, nextCell.Value.Cell, map) && mobile.ToCell != mobile.FromCell)
+					if (mobile.ToCell != mobile.FromCell)
+					{
+					}
+
+					if (!mobile.IsTraitPaused && !mobile.IsTraitDisabled && IsTurn(mobile, nextCell.Value.Cell, map)) 
 					{
 						var nextSubcellOffset = map.Grid.OffsetOfSubCell(nextCell.Value.SubCell);
 						var ret = new MoveFirstHalf(

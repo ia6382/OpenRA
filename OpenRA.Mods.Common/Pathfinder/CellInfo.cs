@@ -42,34 +42,34 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// <summary>
 		/// The previous node of this one that follows the shortest path
 		/// </summary>
-		public readonly CPos PreviousPos;
-
-		/// <summary>
-		/// The time dimension of node in a path thorugh 3D space-time
-		/// </summary>
-		public readonly int PrevTimestep;
+		public readonly CPos? PreviousPos;
 
 		/// <summary>
 		/// The status of this node
 		/// </summary>
 		public readonly CellStatus Status;
 
-		public CellInfo(int costSoFar, int estimatedTotal, CPos previousPos, CellStatus status)
+		/// <summary>
+		/// Exact tick when agent arrives to this cell
+		/// </summary>
+		public readonly int ArrivalTick;
+
+		public CellInfo(int costSoFar, int estimatedTotal, CPos? previousPos, CellStatus status)
 		{
 			CostSoFar = costSoFar;
 			PreviousPos = previousPos;
 			Status = status;
 			EstimatedTotal = estimatedTotal;
-			PrevTimestep = 0;
+			ArrivalTick = 0;
 		}
 
-		public CellInfo(int costSoFar, int estimatedTotal, CPos previousPos, CellStatus status, int prevTimestep)
+		public CellInfo(int costSoFar, int estimatedTotal, CPos? previousPos, CellStatus status, int arrivalTick)
 		{
 			CostSoFar = costSoFar;
 			PreviousPos = previousPos;
 			Status = status;
 			EstimatedTotal = estimatedTotal;
-			PrevTimestep = prevTimestep;
+			ArrivalTick = arrivalTick;
 		}
 	}
 }

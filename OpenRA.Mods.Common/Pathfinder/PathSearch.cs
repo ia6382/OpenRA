@@ -143,7 +143,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		protected override void AddInitialCell3d(CPos location)
 		{
 			var cost = heuristic(location);
-			Graph[(location, 0)] = new CellInfo(0, cost, location, CellStatus.Open);
+			Graph[(location, 0)] = new CellInfo(0, cost, null, CellStatus.Open, Tick);
 			var connection = new GraphConnection(location, cost);
 			OpenQueue.Add(connection);
 			StartPoints.Add(connection);
@@ -247,11 +247,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 			// Check for duplicates and mark them as invalids
 			if (currentCell.Status == CellStatus.Duplicate)
-				Graph[(currentMinNode, currentTimestep)] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid);
+				Graph[(currentMinNode, currentTimestep)] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Invalid, currentCell.ArrivalTick);
 			else if (currentCell.Status == CellStatus.Invalid)
 				return (currentMinNode, currentTimestep);
 			else
-				Graph[(currentMinNode, currentTimestep)] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed);
+				Graph[(currentMinNode, currentTimestep)] = new CellInfo(currentCell.CostSoFar, currentCell.EstimatedTotal, currentCell.PreviousPos, CellStatus.Closed, currentCell.ArrivalTick);
 
 			if (Graph.CustomCost != null && Graph.CustomCost(currentMinNode) == PathGraph.CostForInvalidCell)
 				return (currentMinNode, currentTimestep);
@@ -264,7 +264,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			var allRRANodes = neighbours.Where(x => isInRAA(x.Destination));
 			var forwardRRANodes = allRRANodes.Where(x => x.Destination != currentMinNode && x.Destination != currentCell.PreviousPos);
 
-			if (forwardRRANodes.Any() && currentMinNode != currentCell.PreviousPos) // if we are standing still (wait action) ignore this optimization
+			if (forwardRRANodes.Any() && currentCell.PreviousPos.HasValue) // if we are standing still (wait action) ignore this optimization
 				neighbours = allRRANodes.ToList();
 
 			// TODO: Optimization: if expanding goal node (TODO: check time reservations to) stay here without looking other neighbours
@@ -285,6 +285,60 @@ namespace OpenRA.Mods.Common.Pathfinder
 				// Cost is even higher; next direction. Ignore for staying at the same place
 				if (gCost >= neighborCell.CostSoFar)
 					continue;
+
+				// Calculate arrival tick to the neighbouring cell - required ticks to cross current cell
+				int distance;
+				if (!currentCell.PreviousPos.HasValue) // if this is our starting cell we do not start on the edge of cell, but at mobile.CenterPosition
+					distance = (mobile.CenterPosition - Util.BetweenCells(Actor.World, currentMinNode, neighborCPos)).Length;
+				else // from edge of current cell to edge od neighbouring cell
+					distance = (Util.BetweenCells(Actor.World, currentCell.PreviousPos.Value, currentMinNode)
+						- Util.BetweenCells(Actor.World, currentMinNode, neighborCPos)).Length;
+
+				var neighbourArrivalTick = currentCell.ArrivalTick + (distance / mobile.MovementSpeedForCell(Actor, currentMinNode));
+
+				// calculate ticks needed for a potential turn
+				if (currentMinNode != neighborCPos)
+				{
+					WAngle desiredAngle = Actor.World.Map.FacingBetween(currentMinNode, neighborCPos, WAngle.Zero);
+					WAngle currentAngle;
+					if (!currentCell.PreviousPos.HasValue)
+					{
+						currentAngle = mobile.Facing;
+					}
+
+					// if we are waiting go back until you find current orientation of waiting agent
+					else if (currentCell.PreviousPos.Value == currentMinNode)
+					{
+						currentAngle = mobile.Facing;
+						var c = currentCell;
+						var t = currentTimestep;
+						while (c.PreviousPos.HasValue)
+						{
+							if (c.PreviousPos.Value != currentMinNode)
+							{
+								currentAngle = Actor.World.Map.FacingBetween(c.PreviousPos.Value, currentMinNode, WAngle.Zero);
+								break;
+							}
+
+							t -= 1;
+							c = Graph[(c.PreviousPos.Value, t)];
+						}
+					}
+					else
+					{
+						currentAngle = Actor.World.Map.FacingBetween(currentCell.PreviousPos.Value, currentMinNode, WAngle.Zero);
+					}
+
+					var leftTurn = (currentAngle - desiredAngle).Angle;
+					var rightTurn = (desiredAngle - currentAngle).Angle;
+					var turn = rightTurn < leftTurn ? rightTurn : leftTurn;
+					var turnSpeed = Actor.Trait<IFacing>().TurnSpeed.Angle;
+					var turnTicks = turn / turnSpeed;
+
+					// only account for turn ticks if needed - agent always turns in place, agent is just starting the movement or the turn is too sharp.
+					if (mobile.Info.AlwaysTurnInPlace || !currentCell.PreviousPos.HasValue || turn >= 384)
+						neighbourArrivalTick += turnTicks;
+				}
 
 				// Now we may seriously consider this direction using heuristics. If the cell has
 				// already been processed, we can reuse the result (just the difference between the

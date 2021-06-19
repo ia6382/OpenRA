@@ -287,31 +287,35 @@ namespace OpenRA.Mods.Common.Traits
 
 		// Build the path from the destination. When we find a node that has the same previous
 		// position than itself, that node is the source node.
-		static List<CPos> MakePath(IGraph<CellInfo> cellInfo, CPos destination)
+		static List<CPos> MakePath(IGraph<CellInfo> cellInfos, CPos destination)
 		{
 			var ret = new List<CPos>();
 			var currentNode = destination;
 
-			while (cellInfo[currentNode].PreviousPos != currentNode)
+			while (cellInfos[currentNode].PreviousPos != currentNode)
 			{
 				ret.Add(currentNode);
-				currentNode = cellInfo[currentNode].PreviousPos;
+				if (!cellInfos[currentNode].PreviousPos.HasValue)
+					return ret;
+				currentNode = cellInfos[currentNode].PreviousPos.Value;
 			}
 
 			ret.Add(currentNode);
 			return ret;
 		}
 
-		static List<CPos> MakePathWHCA(IGraph<CellInfo> cellInfo, CPos destination, int timestep)
+		static List<CPos> MakePathWHCA(IGraph<CellInfo> cellInfos, CPos destination, int timestep)
 		{
 			var ret = new List<CPos>();
-			var currentNode = destination;
+			CPos currentNode = destination;
 			var currentTimestep = timestep;
 
 			while (currentTimestep > 0)
 			{
 				ret.Add(currentNode);
-				currentNode = cellInfo[(currentNode, currentTimestep)].PreviousPos;
+				if (!cellInfos[(currentNode, currentTimestep)].PreviousPos.HasValue)
+					return ret;
+				currentNode = cellInfos[(currentNode, currentTimestep)].PreviousPos.Value;
 				currentTimestep -= 1;
 			}
 
@@ -329,7 +333,7 @@ namespace OpenRA.Mods.Common.Traits
 			while (ca[q].PreviousPos != q)
 			{
 				ret.Add(q);
-				q = ca[q].PreviousPos;
+				q = ca[q].PreviousPos.Value;
 			}
 
 			ret.Add(q);
@@ -339,7 +343,7 @@ namespace OpenRA.Mods.Common.Traits
 			q = confluenceNode;
 			while (cb[q].PreviousPos != q)
 			{
-				q = cb[q].PreviousPos;
+				q = cb[q].PreviousPos.Value;
 				ret.Add(q);
 			}
 

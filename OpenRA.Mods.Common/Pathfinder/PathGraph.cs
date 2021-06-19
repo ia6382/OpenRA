@@ -157,11 +157,17 @@ namespace OpenRA.Mods.Common.Pathfinder
 		{
 			var info = position.Layer == 0 ? groundInfo : customLayerInfo[position.Layer].Info;
 			var previousPos = info[position].PreviousPos;
-
-			var dx = position.X - previousPos.X;
-			var dy = position.Y - previousPos.Y;
-
-			var index = dy * 3 + dx + 4;
+			var index = 0;
+			if (previousPos.HasValue)
+			{
+				var dx = position.X - previousPos.Value.X;
+				var dy = position.Y - previousPos.Value.Y;
+				index = dy * 3 + dx + 4;
+			}
+			else
+			{
+				index = 4;
+			}
 
 			var directions = DirectedNeighbors[index];
 			var validNeighbors = new List<GraphConnection>(directions.Length);
